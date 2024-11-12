@@ -1,6 +1,10 @@
 [workspace]
-members = [
-    "crates/wgsparkl-testbed2d", "crates/wgsparkl-testbed3d", "crates/wgsparkl2d", "crates/wgsparkl3d"]
+members = [ "crates/server",
+    "crates/wgsparkl-testbed2d",
+    "crates/wgsparkl-testbed3d",
+    "crates/wgsparkl2d",
+    "crates/wgsparkl3d",
+]
 resolver = "2"
 
 [workspace.dependencies]
@@ -15,7 +19,7 @@ encase = { version = "0.10.0", features = ["nalgebra"] }
 
 [workspace.lints]
 rust.unexpected_cfgs = { level = "warn", check-cfg = [
-    'cfg(feature, values("dim2", "dim3"))'
+    'cfg(feature, values("dim2", "dim3"))',
 ] }
 
 [patch.crates-io]
