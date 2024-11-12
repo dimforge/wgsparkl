@@ -30,8 +30,8 @@ async fn main() {
     println!("Server listening on http://{}", addr);
 
     // Run the server
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    axum::serve(listener, app.into_make_service())
         .await
         .unwrap();
 }
@@ -55,14 +55,14 @@ async fn serve_js() -> impl IntoResponse {
 // Serve the gzipped WASM file
 async fn serve_wasm() -> impl IntoResponse {
     // Load the pre-gzipped .wasm file
-    let wasm_path = "dist2d/elasticity2_bg.wasm";
+    let wasm_path = "dist2d/elasticity2_bg.wasm.br";
     let wasm_data = tokio::fs::read(wasm_path).await.unwrap();
 
     // Set headers for gzip encoding and wasm content type
     (
         [
             (CONTENT_TYPE, HeaderValue::from_static("application/wasm")),
-            (CONTENT_ENCODING, HeaderValue::from_static("txt")),
+            (CONTENT_ENCODING, HeaderValue::from_static("br")),
         ],
         wasm_data,
     )
