@@ -19,7 +19,6 @@ rust.unexpected_cfgs = { level = "warn", check-cfg = [
 ] }
 
 [patch.crates-io]
-nalgebra = { git = "https://github.com/dimforge/nalgebra", branch = "more-bytemuck" }
 bevy_wasm_window_resize = { git = "https://github.com/Vrixyz/bevy_wasm_window_resize", rev = "770a679316ae24772d278360635e086278c70fa2" }
 bevy_editor_cam = { git = "https://github.com/Vrixyz/bevy_editor_cam", rev = "4dce484" }
 bevy_egui = { git = "https://github.com/Vrixyz/bevy_egui", rev = "9edc10c" }

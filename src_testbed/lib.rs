@@ -13,6 +13,7 @@ pub mod instancing2d;
 #[cfg(feature = "dim3")]
 pub mod instancing3d;
 
+mod hot_reload;
 pub mod prep_vertex_buffer;
 pub mod startup;
 pub mod step;
@@ -23,9 +24,9 @@ use bevy::ecs::system::SystemId;
 use bevy::prelude::*;
 use bevy_editor_cam::prelude::DefaultEditorCamPlugins;
 use bevy_wasm_window_resize::WindowResizePlugin;
-
 use instancing::INSTANCING_SHADER_HANDLE;
 use prep_vertex_buffer::{GpuRenderConfig, RenderConfig, WgPrepVertexBuffer};
+use wgcore::hot_reloading::HotReloadState;
 use wgcore::timestamps::GpuTimestamps;
 use wgsparkl::{
     pipeline::{MpmData, MpmPipeline},
@@ -43,7 +44,14 @@ pub fn init_testbed(app: &mut App) {
         .add_plugins(bevy_egui::EguiPlugin)
         .init_resource::<SceneInits>()
         .add_systems(Startup, startup::setup_app)
-        .add_systems(Update, (ui::update_ui, step::step_simulation));
+        .add_systems(
+            Update,
+            (
+                ui::update_ui,
+                step::step_simulation,
+                hot_reload::handle_hot_reloading,
+            ),
+        );
 
     #[cfg(feature = "dim2")]
     load_internal_asset!(
@@ -72,6 +80,7 @@ pub struct AppState {
     pub gravity_factor: f32,
     pub restarting: bool,
     pub selected_scene: usize,
+    pub hot_reload: HotReloadState,
 }
 
 #[derive(Resource)]
