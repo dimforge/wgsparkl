@@ -23,9 +23,9 @@ naga_oil = { workspace = true }
 bytemuck = { workspace = true }
 async-channel = { workspace = true }
 
-wgcore = { version = "0.1", path = "../../../wgmath/crates/wgcore" }
-wgebra = { version = "0.1", path = "../../../wgmath/crates/wgebra" }
-wgparry3d = { version = "0.1", path = "../../../wgmath/crates/wgparry/crates/wgparry3d" }
+wgcore = { version = "0.2", path = "../../../wgmath/crates/wgcore" }
+wgebra = { version = "0.2", path = "../../../wgmath/crates/wgebra" }
+wgparry3d = { version = "0.2", path = "../../../wgmath/crates/wgparry/crates/wgparry3d" }
 
 futures-test = "0.3"
 serial_test = "3"
