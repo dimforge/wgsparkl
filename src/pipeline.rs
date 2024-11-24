@@ -1,11 +1,13 @@
 use crate::grid::grid::{GpuGrid, WgGrid};
 use crate::grid::prefix_sum::{PrefixSumWorkspace, WgPrefixSum};
-use crate::grid::sort::WgSort;
+use crate::grid::sort::{TouchParticleBlocks, WgSort};
 use crate::models::GpuModels;
 use crate::solver::{
     GpuParticles, GpuSimulationParams, Particle, SimulationParams, WgG2P, WgGridUpdate, WgP2G,
     WgParticleUpdate,
 };
+use naga_oil::compose::ComposerError;
+use wgcore::hot_reloading::HotReloadState;
 use wgcore::kernel::KernelInvocationQueue;
 use wgcore::Shader;
 use wgpu::Device;
@@ -15,11 +17,44 @@ pub struct MpmPipeline {
     grid: WgGrid,
     prefix_sum: WgPrefixSum,
     sort: WgSort,
+    #[cfg(target_os = "macos")]
+    touch_particle_blocks: TouchParticleBlocks,
     p2g: WgP2G,
     grid_update: WgGridUpdate,
     particles_update: WgParticleUpdate,
     g2p: WgG2P,
     integrate_bodies: WgIntegrate,
+}
+
+impl MpmPipeline {
+    pub fn init_hot_reloading(&self, state: &mut HotReloadState) {
+        WgGrid::watch_sources(state).unwrap(); // TODO: don’t unwrap
+        WgPrefixSum::watch_sources(state).unwrap(); // TODO: don’t unwrap
+        WgSort::watch_sources(state).unwrap(); // TODO: don’t unwrap
+        WgP2G::watch_sources(state).unwrap(); // TODO: don’t unwrap
+        WgGridUpdate::watch_sources(state).unwrap(); // TODO: don’t unwrap
+        WgParticleUpdate::watch_sources(state).unwrap(); // TODO: don’t unwrap
+        WgG2P::watch_sources(state).unwrap(); // TODO: don’t unwrap
+        WgIntegrate::watch_sources(state).unwrap(); // TODO: don’t unwrap
+    }
+
+    pub fn reload_if_changed(
+        &mut self,
+        device: &Device,
+        state: &HotReloadState,
+    ) -> Result<bool, ComposerError> {
+        let mut changed = false;
+        changed = self.grid.reload_if_changed(device, state)? || changed;
+        changed = self.prefix_sum.reload_if_changed(device, state)? || changed;
+        changed = self.sort.reload_if_changed(device, state)? || changed;
+        changed = self.p2g.reload_if_changed(device, state)? || changed;
+        changed = self.grid_update.reload_if_changed(device, state)? || changed;
+        changed = self.particles_update.reload_if_changed(device, state)? || changed;
+        changed = self.g2p.reload_if_changed(device, state)? || changed;
+        changed = self.integrate_bodies.reload_if_changed(device, state)? || changed;
+
+        Ok(changed)
+    }
 }
 
 pub struct MpmData {
@@ -59,17 +94,19 @@ impl MpmData {
 }
 
 impl MpmPipeline {
-    pub fn new(device: &Device) -> Self {
-        Self {
-            grid: WgGrid::from_device(device),
-            prefix_sum: WgPrefixSum::from_device(device),
-            sort: WgSort::from_device(device),
-            p2g: WgP2G::from_device(device),
-            grid_update: WgGridUpdate::from_device(device),
-            particles_update: WgParticleUpdate::from_device(device),
-            g2p: WgG2P::from_device(device),
-            integrate_bodies: WgIntegrate::from_device(device),
-        }
+    pub fn new(device: &Device) -> Result<Self, ComposerError> {
+        Ok(Self {
+            grid: WgGrid::from_device(device)?,
+            prefix_sum: WgPrefixSum::from_device(device)?,
+            sort: WgSort::from_device(device)?,
+            p2g: WgP2G::from_device(device)?,
+            grid_update: WgGridUpdate::from_device(device)?,
+            particles_update: WgParticleUpdate::from_device(device)?,
+            g2p: WgG2P::from_device(device)?,
+            integrate_bodies: WgIntegrate::from_device(device)?,
+            #[cfg(target_os = "macos")]
+            touch_particle_blocks: TouchParticleBlocks::from_device(device),
+        })
     }
 
     pub fn queue_step<'a>(
@@ -85,6 +122,8 @@ impl MpmPipeline {
             &data.grid,
             &mut data.prefix_sum,
             &self.sort,
+            #[cfg(target_os = "macos")]
+            &self.touch_particle_blocks,
             &self.prefix_sum,
             queue,
         );

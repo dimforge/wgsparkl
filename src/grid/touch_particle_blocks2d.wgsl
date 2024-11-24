@@ -1,23 +1,9 @@
-#define_import_path wgsparkl::grid::grid
-#import wgsparkl::solver::params as Params;
-
-
 @group(0) @binding(0)
 var<storage, read_write> grid: Grid; // TODO: should be uniform? Currently it can’t due to the mutable num_active_blocks atomic.
 @group(0) @binding(1)
 var<storage, read_write> hmap_entries: array<GridHashMapEntry>;
 @group(0) @binding(2)
 var<storage, read_write> active_blocks: array<ActiveBlockHeader>;
-@group(0) @binding(3)
-var<storage, read_write> nodes: array<Node>;
-@group(0) @binding(4)
-var<uniform> sim_params: Params::SimulationParams;
-@group(0) @binding(5)
-var<storage, read_write> n_block_groups: DispatchIndirectArgs;
-@group(0) @binding(6)
-var<storage, read_write> nodes_linked_lists: array<NodeLinkedListAtomic>;
-@group(0) @binding(7)
-var<storage, read_write> n_g2p_p2g_groups: DispatchIndirectArgs;
 @group(0) @binding(8)
 var<storage, read_write> num_collisions: array<atomic<u32>>;
 
@@ -49,11 +35,7 @@ struct DispatchIndirectArgs {
  * Some index types.
  */
 struct BlockVirtualId {
-    #if DIM == 2
     id: vec2<i32>,
-    #else
-    id: vec3<i32>,
-    #endif
 }
 
 struct BlockHeaderId {
@@ -75,21 +57,10 @@ struct NodePhysicalId {
  */
 const NONE: u32 = 0xffffffffu;
 
-#if DIM == 2
 fn pack_key(key: BlockVirtualId) -> u32 {
     return (bitcast<u32>(key.id.x + 0x00007fff) & 0x0000ffffu) |
     ((bitcast<u32>(key.id.y + 0x00007fff) & 0x0000ffffu) << 16);
 }
-#else
-fn pack_key(key: BlockVirtualId) -> u32 {
-    // NOTE: we give the X and Z axis one more bit than Y.
-    //       This is assuming Y-up and the fact that we want
-    //       more room on the X-Z plane rather than along the up axis.
-    return (bitcast<u32>(key.id.x + 0x000003ff) & 0x000007ffu) |
-    ((bitcast<u32>(key.id.y + 0x000001ff) & 0x000003ffu) << 11) |
-    ((bitcast<u32>(key.id.z + 0x000003ff) & 0x000007ffu) << 21);
-}
-#endif
 
 fn hash(packed_key: u32) -> u32 {
     // Murmur3 hash function.
@@ -112,7 +83,6 @@ struct GridHashMapEntry {
     value: BlockHeaderId
 }
 
-#if MACOS == 0
 // The hash map ipmelementation is inspired from https://nosferalatu.com/SimpleGPUHashTable.html
 fn insertion_index(capacity: u32, key: BlockVirtualId) -> u32 {
     let packed_key = pack_key(key);
@@ -158,54 +128,11 @@ fn insertion_index(capacity: u32, key: BlockVirtualId) -> u32 {
 
     return NONE;
 }
-#endif
-
-fn find_block_header_id(key: BlockVirtualId) -> BlockHeaderId {
-    let packed_key = pack_key(key);
-    var slot = hash(packed_key) & (grid.hmap_capacity - 1);
-
-    loop {
-        let entry = &hmap_entries[slot];
-        let state = (*entry).state;
-        if state == packed_key {
-            return (*entry).value;
-        } else if state == NONE {
-            return BlockHeaderId(NONE);
-        }
-
-         slot = (slot + 1) & (grid.hmap_capacity - 1);
-    }
-
-    return BlockHeaderId(NONE);
-}
-
-@compute @workgroup_size(GRID_WORKGROUP_SIZE, 1, 1)
-fn reset_hmap(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
-    let id = invocation_id.x;
-    if id < grid.hmap_capacity {
-        hmap_entries[id].state = NONE;
-        // Resetting the following two isn’t necessary for correctness,
-        // but it makes debugging easier.
-        #if DIM == 2
-        hmap_entries[id].key = BlockVirtualId(vec2(0));
-        #else
-        hmap_entries[id].key = BlockVirtualId(vec3(0));
-        #endif
-        hmap_entries[id].value = BlockHeaderId(0);
-    }
-    if id == 0 {
-        grid.num_active_blocks = 0u;
-    }
-}
 
 /*
  * Sparse grid definition.
  */
-#if DIM == 2
 const NUM_ASSOC_BLOCKS: u32 = 4;
-#else
-const NUM_ASSOC_BLOCKS: u32 = 8;
-#endif
 const OFF_BY_ONE: i32 = 1;
 
 struct ActiveBlockHeader {
@@ -226,14 +153,9 @@ struct Grid {
 struct Node {
     /// The first three components contains either the cell’s momentum or its velocity
     /// (depending on the context). The fourth component contains the cell’s mass.
-    #if DIM == 2
     momentum_velocity_mass: vec3<f32>,
-    #else
-    momentum_velocity_mass: vec4<f32>,
-    #endif
 }
 
-#if DIM == 2
 fn block_associated_to_point(pt: vec2<f32>) -> BlockVirtualId {
     let assoc_cell = round(pt / grid.cell_width) - 1.0;
     let assoc_block = floor(assoc_cell / 8.0);
@@ -247,46 +169,16 @@ fn blocks_associated_to_point(pt: vec2<f32>) -> array<BlockVirtualId, NUM_ASSOC_
     let main_block = block_associated_to_point(pt);
     return blocks_associated_to_block(main_block);
 }
-#else
-fn block_associated_to_point(pt: vec3<f32>) -> BlockVirtualId {
-    let assoc_cell = round(pt / grid.cell_width) - 1.0;
-    let assoc_block = floor(assoc_cell / 4.0);
-    return BlockVirtualId(vec3(
-        i32(assoc_block.x),
-        i32(assoc_block.y),
-        i32(assoc_block.z),
-    ));
-}
-
-fn blocks_associated_to_point(pt: vec3<f32>) -> array<BlockVirtualId, NUM_ASSOC_BLOCKS> {
-    let main_block = block_associated_to_point(pt);
-    return blocks_associated_to_block(main_block);
-}
-#endif
 
 fn blocks_associated_to_block(block: BlockVirtualId) -> array<BlockVirtualId, NUM_ASSOC_BLOCKS> {
-    #if DIM == 2
     return array<BlockVirtualId, NUM_ASSOC_BLOCKS>(
         BlockVirtualId(block.id + vec2(0, 0)),
         BlockVirtualId(block.id + vec2(0, 1)),
         BlockVirtualId(block.id + vec2(1, 0)),
         BlockVirtualId(block.id + vec2(1, 1)),
     );
-    #else
-    return array<BlockVirtualId, NUM_ASSOC_BLOCKS>(
-        BlockVirtualId(block.id + vec3(0, 0, 0)),
-        BlockVirtualId(block.id + vec3(0, 0, 1)),
-        BlockVirtualId(block.id + vec3(0, 1, 0)),
-        BlockVirtualId(block.id + vec3(0, 1, 1)),
-        BlockVirtualId(block.id + vec3(1, 0, 0)),
-        BlockVirtualId(block.id + vec3(1, 0, 1)),
-        BlockVirtualId(block.id + vec3(1, 1, 0)),
-        BlockVirtualId(block.id + vec3(1, 1, 1)),
-    );
-    #endif
 }
 
-#if MACOS == 0
 fn mark_block_as_active(block: BlockVirtualId) {
     let slot = insertion_index(grid.hmap_capacity, block);
 
@@ -299,54 +191,28 @@ fn mark_block_as_active(block: BlockVirtualId) {
         hmap_entries[slot].value = BlockHeaderId(block_header_id);
     }
 }
-#endif
-
-fn block_header_id_to_physical_id(hid: BlockHeaderId) -> BlockPhysicalId {
-    return BlockPhysicalId(hid.id * NUM_CELL_PER_BLOCK);
-}
-
-#if DIM == 2
-fn node_id(pid: BlockPhysicalId, shift_in_block: vec2<u32>) -> NodePhysicalId {
-    return NodePhysicalId(pid.id + shift_in_block.x + shift_in_block.y * 8);
-}
-#else
-fn node_id(pid: BlockPhysicalId, shift_in_block: vec3<u32>) -> NodePhysicalId {
-    return NodePhysicalId(pid.id + shift_in_block.x + shift_in_block.y * 4 + shift_in_block.z * 4 * 4);
-}
-#endif
-
-fn div_ceil(x: u32, y: u32) -> u32 {
-    return (x + y - 1) / y;
-}
-
-@compute @workgroup_size(1)
-fn init_indirect_workgroups() {
-    let num_active_blocks = grid.num_active_blocks;
-    n_block_groups = DispatchIndirectArgs(div_ceil(num_active_blocks, GRID_WORKGROUP_SIZE), 1, 1);
-    n_g2p_p2g_groups = DispatchIndirectArgs(num_active_blocks, 1, 1);
-}
-
-@compute @workgroup_size(GRID_WORKGROUP_SIZE, 1, 1)
-fn reset(@builtin(global_invocation_id) invocation_id: vec3<u32>, @builtin(num_workgroups) num_workgroups: vec3<u32>) {
-   let num_threads = num_workgroups.x * GRID_WORKGROUP_SIZE * num_workgroups.y * num_workgroups.z;
-   let i = invocation_id.x;
-   let num_nodes = grid.num_active_blocks * NUM_CELL_PER_BLOCK;
-   for (var i = invocation_id.x; i < num_nodes; i += num_threads) {
-       #if DIM == 2
-       nodes[i].momentum_velocity_mass = vec3(0.0);
-       #else
-       nodes[i].momentum_velocity_mass = vec4(0.0);
-       #endif
-       nodes_linked_lists[i].head = NONE;
-       nodes_linked_lists[i].len = 0u;
-   }
-}
 
 struct SimulationParameters {
     dt: f32,
-    #if DIM == 2
     gravity: vec2<f32>,
-    #else
-    gravity: vec3<f32>,
-    #endif
+}
+
+// ~~~~~~~~~~~ Copied from sort.wgsl and particle2/3d.wgsl ~~~~~~~~~~~~~
+struct Position {
+    pt: vec2<f32>,
+}
+
+@group(1) @binding(0)
+var<storage, read_write> particles_pos: array<Position>;
+
+@compute @workgroup_size(GRID_WORKGROUP_SIZE, 1, 1)
+fn touch_particle_blocks(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
+    let id = invocation_id.x;
+    if id < arrayLength(&particles_pos) {
+        let particle = particles_pos[id];
+        var blocks = blocks_associated_to_point(particle.pt);
+        for (var i = 0u; i < NUM_ASSOC_BLOCKS; i += 1u) {
+            mark_block_as_active(blocks[i]);
+        }
+    }
 }

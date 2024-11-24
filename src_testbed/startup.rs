@@ -11,8 +11,9 @@ use bevy::prelude::*;
 use bevy::render::render_resource::BufferUsages;
 use bevy::render::renderer::RenderDevice;
 use bevy::render::view::NoFrustumCulling;
-use bevy_editor_cam::prelude::{EditorCam, EnabledMotion};
+// use bevy_editor_cam::prelude::{EditorCam, EnabledMotion};
 use std::sync::Arc;
+use wgcore::hot_reloading::HotReloadState;
 use wgcore::tensor::GpuVector;
 use wgcore::timestamps::GpuTimestamps;
 use wgpu::Features;
@@ -24,7 +25,10 @@ pub fn setup_app(mut commands: Commands, device: Res<RenderDevice>) {
     let render_config = RenderConfig::new(RenderMode::Velocity);
     let gpu_render_config = GpuRenderConfig::new(device.wgpu_device(), render_config);
     let prep_vertex_buffer = WgPrepVertexBuffer::new(device.wgpu_device());
-    let pipeline = MpmPipeline::new(device.wgpu_device());
+
+    let mut hot_reload = HotReloadState::new().unwrap();
+    let pipeline = MpmPipeline::new(device.wgpu_device()).unwrap();
+    pipeline.init_hot_reloading(&mut hot_reload);
 
     commands.insert_resource(AppState {
         render_config,
@@ -36,6 +40,7 @@ pub fn setup_app(mut commands: Commands, device: Res<RenderDevice>) {
         gravity_factor: 1.0,
         restarting: false,
         selected_scene: 0,
+        hot_reload,
     });
 
     let (snd, rcv) = async_channel::unbounded();
@@ -68,14 +73,14 @@ pub fn setup_app(mut commands: Commands, device: Res<RenderDevice>) {
                 // }),
                 ..default()
             },
-            EditorCam {
-                enabled_motion: EnabledMotion {
-                    orbit: false,
-                    ..Default::default()
-                },
-                last_anchor_depth: -99.0,
-                ..Default::default()
-            },
+            // EditorCam {
+            //     enabled_motion: EnabledMotion {
+            //         orbit: false,
+            //         ..Default::default()
+            //     },
+            //     last_anchor_depth: -99.0,
+            //     ..Default::default()
+            // },
         ));
     }
 
@@ -86,8 +91,7 @@ pub fn setup_app(mut commands: Commands, device: Res<RenderDevice>) {
                 transform: Transform::from_translation(Vec3::new(0.0, 1.5, 5.0)),
                 ..default()
             },
-            EditorCam::default(),
-            // PanOrbitCamera::default(),
+            // EditorCam::default(),
         ));
     }
 }
@@ -144,7 +148,7 @@ pub fn setup_graphics(
 
     let num_instances = instances.len();
     commands.spawn((
-        cube,
+        Mesh3d(cube),
         SpatialBundle::INHERITED_IDENTITY,
         InstanceMaterialData {
             data: instances,

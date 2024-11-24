@@ -23,17 +23,17 @@ naga_oil = { workspace = true }
 bytemuck = { workspace = true }
 async-channel = { workspace = true }
 
-wgcore = { path = "../../../wgmath/crates/wgcore" }
-wgebra = { path = "../../../wgmath/crates/wgebra" }
-wgparry2d = { path = "../../../wgmath/crates/wgparry/crates/wgparry2d" }
+wgcore = { version = "0.2", path = "../../../wgmath/crates/wgcore" }
+wgebra = { version = "0.2", path = "../../../wgmath/crates/wgebra" }
+wgparry2d = { version = "0.2", path = "../../../wgmath/crates/wgparry/crates/wgparry2d" }
 
 futures-test = "0.3"
 serial_test = "3"
 approx = "0.5"
 async-std = { version = "1", features = ["attributes"] }
-bevy = { version = "0.15.0-dev", features = ["shader_format_glsl", "shader_format_spirv", "webgpu"], git = "https://github.com/bevyengine/bevy", rev = "9386bd0114c44c9f00a2e9c41db1225aaa78d159" }
-bevy_wasm_window_resize = "0.4"
-bevy_editor_cam = "0.3"
-bevy_mod_picking = { version = "0.20", default-features = false }
-bevy_egui = { version = "0.29", default-features = false, features = ["default_fonts", "render"] }
+bevy = { version = "0.15.0-rc.3", features = ["shader_format_glsl", "shader_format_spirv", "webgpu"] }
+#bevy_wasm_window_resize = "0.4"
+#bevy_editor_cam = "0.3"
+#bevy_mod_picking = { version = "0.20", default-features = false }
+bevy_egui = { version = "0.30", default-features = false, features = ["default_fonts", "render"] }
 wgsparkl2d = { path = "../wgsparkl2d" }

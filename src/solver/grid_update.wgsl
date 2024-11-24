@@ -47,7 +47,6 @@ fn update_single_cell(cell_pos: vec2<f32>, momentum_velocity_mass: vec3<f32>) ->
     let mass = momentum_velocity_mass.z;
     let inv_mass = select(0.0, 1.0 / mass, mass > 0.0);
     var velocity = (momentum_velocity_mass.xy + mass * Grid::sim_params.gravity * Grid::sim_params.dt) * inv_mass;
-
     // Clamp the velocity so it doesn’t exceed 1 grid cell in one step.
     let vel_limit = vec2(Grid::grid.cell_width / Grid::sim_params.dt);
     velocity = clamp(velocity, -vel_limit, vel_limit);
