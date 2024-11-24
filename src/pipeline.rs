@@ -1,6 +1,6 @@
 use crate::grid::grid::{GpuGrid, WgGrid};
 use crate::grid::prefix_sum::{PrefixSumWorkspace, WgPrefixSum};
-use crate::grid::sort::{TouchParticleBlocks, WgSort};
+use crate::grid::sort::WgSort;
 use crate::models::GpuModels;
 use crate::solver::{
     GpuParticles, GpuSimulationParams, Particle, SimulationParams, WgG2P, WgGridUpdate, WgP2G,
@@ -12,6 +12,9 @@ use wgcore::kernel::KernelInvocationQueue;
 use wgcore::Shader;
 use wgpu::Device;
 use wgrapier::dynamics::{BodyDesc, GpuBodySet, WgIntegrate};
+
+#[cfg(target_os = "macos")]
+use crate::grid::sort::TouchParticleBlocks;
 
 pub struct MpmPipeline {
     grid: WgGrid,
