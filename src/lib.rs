@@ -13,4 +13,12 @@ pub mod models;
 pub mod pipeline;
 pub mod solver;
 
-pub(crate) use wgparry::{dim_shader_defs, substitute_aliases};
+pub(crate) fn dim_shader_defs() -> HashMap<String, ShaderDefValue> {
+    let mut result = wgparry::dim_shader_defs();
+    result.insert("MACOS".to_string(), ShaderDefValue::Int(if cfg!(target_os = "macos") { 1 } else { 0 }));
+    result
+}
+
+use std::collections::HashMap;
+use naga_oil::compose::ShaderDefValue;
+pub(crate) use wgparry::{substitute_aliases};

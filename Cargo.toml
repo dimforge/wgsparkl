@@ -5,11 +5,11 @@ resolver = "2"
 
 [workspace.dependencies]
 nalgebra = { version = "0.33", features = ["convert-bytemuck"] }
-wgpu = { version = "22.1", features = ["naga-ir"] }
+wgpu = { version = "23", features = ["naga-ir"] }
 bytemuck = { version = "1", features = ["derive"] }
 anyhow = "1"
 async-channel = "2"
-naga_oil = "0.15"
+naga_oil = "0.16"
 thiserror = "1"
 encase = { version = "0.10.0", features = ["nalgebra"] }
 
@@ -19,39 +19,7 @@ rust.unexpected_cfgs = { level = "warn", check-cfg = [
 ] }
 
 [patch.crates-io]
-bevy_wasm_window_resize = { git = "https://github.com/Vrixyz/bevy_wasm_window_resize", rev = "770a679316ae24772d278360635e086278c70fa2" }
-bevy_editor_cam = { git = "https://github.com/Vrixyz/bevy_editor_cam", rev = "4dce484" }
-bevy_egui = { git = "https://github.com/Vrixyz/bevy_egui", rev = "9edc10c" }
-bevy_app = { git = "https://github.com/bevyengine/bevy.git", rev = "9386bd0114c44c9f00a2e9c41db1225aaa78d159" }
-bevy_color = { git = "https://github.com/bevyengine/bevy.git", rev = "9386bd0114c44c9f00a2e9c41db1225aaa78d159" }
-bevy_derive = { git = "https://github.com/bevyengine/bevy.git", rev = "9386bd0114c44c9f00a2e9c41db1225aaa78d159" }
-bevy_ecs = { git = "https://github.com/bevyengine/bevy.git", rev = "9386bd0114c44c9f00a2e9c41db1225aaa78d159" }
-bevy_input = { git = "https://github.com/bevyengine/bevy.git", rev = "9386bd0114c44c9f00a2e9c41db1225aaa78d159" }
-bevy_log = { git = "https://github.com/bevyengine/bevy.git", rev = "9386bd0114c44c9f00a2e9c41db1225aaa78d159" }
-bevy_math = { git = "https://github.com/bevyengine/bevy.git", rev = "9386bd0114c44c9f00a2e9c41db1225aaa78d159" }
-bevy_reflect = { git = "https://github.com/bevyengine/bevy.git", rev = "9386bd0114c44c9f00a2e9c41db1225aaa78d159" }
-bevy_render = { git = "https://github.com/bevyengine/bevy.git", rev = "9386bd0114c44c9f00a2e9c41db1225aaa78d159" }
-bevy_time = { git = "https://github.com/bevyengine/bevy.git", rev = "9386bd0114c44c9f00a2e9c41db1225aaa78d159" }
-bevy_text = { git = "https://github.com/bevyengine/bevy.git", rev = "9386bd0114c44c9f00a2e9c41db1225aaa78d159" }
-bevy_pbr = { git = "https://github.com/bevyengine/bevy.git", rev = "9386bd0114c44c9f00a2e9c41db1225aaa78d159" }
-bevy_sprite = { git = "https://github.com/bevyengine/bevy.git", rev = "9386bd0114c44c9f00a2e9c41db1225aaa78d159" }
-bevy_ui = { git = "https://github.com/bevyengine/bevy.git", rev = "9386bd0114c44c9f00a2e9c41db1225aaa78d159" }
-bevy_transform = { git = "https://github.com/bevyengine/bevy.git", rev = "9386bd0114c44c9f00a2e9c41db1225aaa78d159" }
-bevy_utils = { git = "https://github.com/bevyengine/bevy.git", rev = "9386bd0114c44c9f00a2e9c41db1225aaa78d159" }
-bevy_window = { git = "https://github.com/bevyengine/bevy.git", rev = "9386bd0114c44c9f00a2e9c41db1225aaa78d159" }
-# Optional
-bevy_asset = { git = "https://github.com/bevyengine/bevy.git", rev = "9386bd0114c44c9f00a2e9c41db1225aaa78d159" }
-bevy_core_pipeline = { git = "https://github.com/bevyengine/bevy.git", rev = "9386bd0114c44c9f00a2e9c41db1225aaa78d159" }
-bevy_gizmos = { git = "https://github.com/bevyengine/bevy.git", rev = "9386bd0114c44c9f00a2e9c41db1225aaa78d159" }
-# Dev
-bevy = { git = "https://github.com/bevyengine/bevy.git", rev = "9386bd0114c44c9f00a2e9c41db1225aaa78d159" }
-# Upstream update needed
-bevy_picking_core = { git = "https://github.com/vrixyz/bevy_mod_picking.git", branch = "bevy_main" }
-bevy_mod_picking = { git = "https://github.com/vrixyz/bevy_mod_picking.git", branch = "bevy_main" }
-# transitive dependencies
-bevy_hierarchy = { git = "https://github.com/bevyengine/bevy.git", rev = "9386bd0114c44c9f00a2e9c41db1225aaa78d159" }
-bevy_core = { git = "https://github.com/bevyengine/bevy.git", rev = "9386bd0114c44c9f00a2e9c41db1225aaa78d159" }
-bevy_eventlistener = { git = "https://github.com/vrixyz/bevy_eventlistener.git", branch = "bevy_main" }
+bevy_egui = { git = "https://github.com/Vrixyz/bevy_egui", branch = "bevy_main" }
 
 [profile.release]
 opt-level = 'z'

@@ -34,5 +34,5 @@ futures-test = "0.3"
 serial_test = "3"
 approx = "0.5"
 async-std = { version = "1", features = ["attributes"] }
-bevy = { version = "0.15.0-dev", features = ["shader_format_glsl", "shader_format_spirv", "webgpu"], git = "https://github.com/bevyengine/bevy", rev = "9386bd0114c44c9f00a2e9c41db1225aaa78d159" }
+bevy = { version = "0.15.0-rc.3", features = ["shader_format_glsl", "shader_format_spirv", "webgpu"] }
 wgsparkl_testbed3d = { path = "../wgsparkl-testbed3d" }

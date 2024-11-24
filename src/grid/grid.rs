@@ -1,6 +1,6 @@
 use crate::dim_shader_defs;
 use crate::grid::prefix_sum::{PrefixSumWorkspace, WgPrefixSum};
-use crate::grid::sort::WgSort;
+use crate::grid::sort::{TouchParticleBlocks, WgSort};
 use crate::solver::{GpuParticles, WgParams};
 use naga_oil::compose::NagaModuleDescriptor;
 use std::sync::Arc;
@@ -26,6 +26,8 @@ impl WgGrid {
         grid: &GpuGrid,
         prefix_sum: &mut PrefixSumWorkspace,
         sort_module: &'a WgSort,
+        #[cfg(target_os = "macos")]
+        touch_particle_blocks: &'a TouchParticleBlocks,
         prefix_sum_module: &'a WgPrefixSum,
         queue: &mut KernelInvocationQueue<'a>,
     ) {
@@ -45,7 +47,12 @@ impl WgGrid {
                 .bind0([grid.meta.buffer(), grid.hmap_entries.buffer()])
                 .queue(grid.cpu_meta.hmap_capacity.div_ceil(GRID_WORKGROUP_SIZE));
 
-            KernelInvocationBuilder::new(queue, &sort_module.touch_particle_blocks)
+            #[cfg(not(target_os = "macos"))]
+            let touch_particle_blocks = &sort_module.touch_particle_blocks;
+            #[cfg(target_os = "macos")]
+            let touch_particle_blocks = &touch_particle_blocks.touch_particle_blocks;
+
+            KernelInvocationBuilder::new(queue, touch_particle_blocks)
                 .bind_at(
                     0,
                     [

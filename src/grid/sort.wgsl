@@ -13,7 +13,10 @@ var<storage, read_write> sorted_particle_ids: array<u32>;
 @group(1) @binding(3)
 var<storage, read_write> particle_node_linked_lists: array<u32>;
 
-
+// Disable this kernel on macos because of the underlying compareExchangeMap which is
+// not working well with naga-oil. This is why we currently have the flattened
+// toouch_particle_block2/3d.wgsl shaders as a workaround currently.
+#if MACOS == 0
 @compute @workgroup_size(Grid::GRID_WORKGROUP_SIZE, 1, 1)
 fn touch_particle_blocks(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
     let id = invocation_id.x;
@@ -25,6 +28,7 @@ fn touch_particle_blocks(@builtin(global_invocation_id) invocation_id: vec3<u32>
         }
     }
 }
+#endif
 
 // TODO: can this kernel be combined with touch_particle_blocks?
 @compute @workgroup_size(Grid::GRID_WORKGROUP_SIZE, 1, 1)

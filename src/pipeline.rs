@@ -1,6 +1,6 @@
 use crate::grid::grid::{GpuGrid, WgGrid};
 use crate::grid::prefix_sum::{PrefixSumWorkspace, WgPrefixSum};
-use crate::grid::sort::WgSort;
+use crate::grid::sort::{TouchParticleBlocks, WgSort};
 use crate::models::GpuModels;
 use crate::solver::{
     GpuParticles, GpuSimulationParams, Particle, SimulationParams, WgG2P, WgGridUpdate, WgP2G,
@@ -17,6 +17,8 @@ pub struct MpmPipeline {
     grid: WgGrid,
     prefix_sum: WgPrefixSum,
     sort: WgSort,
+    #[cfg(target_os = "macos")]
+    touch_particle_blocks: TouchParticleBlocks,
     p2g: WgP2G,
     grid_update: WgGridUpdate,
     particles_update: WgParticleUpdate,
@@ -50,6 +52,7 @@ impl MpmPipeline {
         changed = self.particles_update.reload_if_changed(device, state)? || changed;
         changed = self.g2p.reload_if_changed(device, state)? || changed;
         changed = self.integrate_bodies.reload_if_changed(device, state)? || changed;
+
         Ok(changed)
     }
 }
@@ -101,6 +104,8 @@ impl MpmPipeline {
             particles_update: WgParticleUpdate::from_device(device)?,
             g2p: WgG2P::from_device(device)?,
             integrate_bodies: WgIntegrate::from_device(device)?,
+            #[cfg(target_os = "macos")]
+            touch_particle_blocks: TouchParticleBlocks::from_device(device),
         })
     }
 
@@ -117,6 +122,8 @@ impl MpmPipeline {
             &data.grid,
             &mut data.prefix_sum,
             &self.sort,
+            #[cfg(target_os = "macos")]
+            &self.touch_particle_blocks,
             &self.prefix_sum,
             queue,
         );
