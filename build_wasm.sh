@@ -7,5 +7,5 @@ wasm-bindgen --no-typescript --target web --out-dir dist3d --out-name elasticity
 wasm-opt -Oz -o ./dist2d/opt.wasm ./dist2d/elasticity2_bg.wasm && mv ./dist2d/opt.wasm ./dist2d/elasticity2_bg.wasm
 wasm-opt -Oz -o ./dist3d/opt.wasm ./dist3d/elasticity3_bg.wasm && mv ./dist3d/opt.wasm ./dist3d/elasticity3_bg.wasm
 
-brotli ./dist2d/elasticity2_bg.wasm
-brotli ./dist3d/elasticity3_bg.wasm
+brotli ./dist2d/elasticity2_bg.wasm && mv ./dist2d/elasticity2_bg.wasm.br ./dist2d/elasticity2_bg.wasm
+brotli ./dist3d/elasticity3_bg.wasm && mv ./dist3d/elasticity3_bg.wasm.br ./dist3d/elasticity3_bg.wasm

@@ -1,5 +1,5 @@
 [workspace]
-members = [ "crates/server",
+members = [
     "crates/wgsparkl-testbed2d",
     "crates/wgsparkl-testbed3d",
     "crates/wgsparkl2d",
