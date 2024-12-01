@@ -16,6 +16,7 @@ use std::sync::Arc;
 use wgcore::hot_reloading::HotReloadState;
 use wgcore::tensor::GpuVector;
 use wgcore::timestamps::GpuTimestamps;
+use wgcore::Shader;
 use wgpu::Features;
 use wgsparkl::pipeline::MpmPipeline;
 
@@ -24,7 +25,7 @@ pub fn setup_app(mut commands: Commands, device: Res<RenderDevice>) {
     // app state
     let render_config = RenderConfig::new(RenderMode::Velocity);
     let gpu_render_config = GpuRenderConfig::new(device.wgpu_device(), render_config);
-    let prep_vertex_buffer = WgPrepVertexBuffer::new(device.wgpu_device());
+    let prep_vertex_buffer = WgPrepVertexBuffer::from_device(device.wgpu_device()).unwrap();
 
     let mut hot_reload = HotReloadState::new().unwrap();
     let pipeline = MpmPipeline::new(device.wgpu_device()).unwrap();

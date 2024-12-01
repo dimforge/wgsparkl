@@ -1,9 +1,8 @@
 use naga_oil::compose::{ComposableModuleDescriptor, Composer, NagaModuleDescriptor};
 use wgcore::composer::ComposerExt;
 use wgcore::kernel::{KernelInvocationBuilder, KernelInvocationQueue};
-use wgcore::shader::Shader;
 use wgcore::tensor::GpuScalar;
-use wgcore::utils;
+use wgcore::{utils, Shader};
 use wgebra::WgSvd2;
 use wgebra::WgSvd3;
 use wgpu::{Buffer, BufferUsages, ComputePipeline, Device};
@@ -64,52 +63,15 @@ impl GpuRenderConfig {
     }
 }
 
-pub struct WgPrepVertexBuffer(ComputePipeline);
+#[derive(Shader)]
+#[shader(derive(WgParticle, WgGrid, WgSvd2, WgSvd3), composable = false)]
+#[cfg_attr(feature = "dim2", shader(src = "prep_vertex_buffer2d.wgsl"))]
+#[cfg_attr(feature = "dim3", shader(src = "prep_vertex_buffer3d.wgsl"))]
+pub struct WgPrepVertexBuffer {
+    main: ComputePipeline,
+}
 
 impl WgPrepVertexBuffer {
-    #[cfg(feature = "dim2")]
-    pub const SRC: &'static str = include_str!("./prep_vertex_buffer2d.wgsl");
-    #[cfg(feature = "dim2")]
-    pub const FILE_PATH: &'static str = "prep_vertex_buffer2d.wgsl";
-
-    #[cfg(feature = "dim3")]
-    pub const SRC: &'static str = include_str!("./prep_vertex_buffer3d.wgsl");
-    #[cfg(feature = "dim3")]
-    pub const FILE_PATH: &'static str = "prep_vertex_buffer3d.wgsl";
-
-    pub fn new(device: &Device) -> Self {
-        let module = Self::composer()
-            .make_naga_module(NagaModuleDescriptor {
-                source: Self::SRC,
-                file_path: Self::FILE_PATH,
-                ..Default::default()
-            })
-            .unwrap();
-        let g2p = utils::load_module(device, "main", module.clone());
-        Self(g2p)
-    }
-
-    pub fn compose(composer: &mut Composer) -> &mut Composer {
-        WgParticle::compose(composer);
-        WgGrid::compose(composer);
-        WgSvd2::compose(composer);
-        WgSvd3::compose(composer);
-        composer
-            .add_composable_module_once(ComposableModuleDescriptor {
-                source: Self::SRC,
-                file_path: Self::FILE_PATH,
-                ..Default::default()
-            })
-            .unwrap();
-        composer
-    }
-
-    pub fn composer() -> Composer {
-        let mut composer = Composer::default();
-        Self::compose(&mut composer);
-        composer
-    }
-
     pub fn queue<'a>(
         &'a self,
         queue: &mut KernelInvocationQueue<'a>,
@@ -119,7 +81,7 @@ impl WgPrepVertexBuffer {
         params: &GpuSimulationParams,
         vertex_buffer: &Buffer,
     ) {
-        KernelInvocationBuilder::new(queue, &self.0)
+        KernelInvocationBuilder::new(queue, &self.main)
             .bind0([
                 vertex_buffer,
                 particles.positions.buffer(),
@@ -132,5 +94,3 @@ impl WgPrepVertexBuffer {
             .queue(particles.positions.len().div_ceil(64) as u32);
     }
 }
-
-wgcore::test_shader_compilation!(WgPrepVertexBuffer);
