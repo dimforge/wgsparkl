@@ -3,4 +3,6 @@
 .vscode
 .idea
 dist
+dist2d
+dist3d
 assets/**/*.bin

@@ -25,6 +25,7 @@ pub struct TouchParticleBlocks {
     pub(crate) touch_particle_blocks: ComputePipeline,
 }
 
+#[cfg(target_os = "macos")]
 impl TouchParticleBlocks {
     pub fn from_device(device: &wgpu::Device) -> Self {
         #[cfg(feature = "dim2")]
