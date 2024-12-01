@@ -23,7 +23,6 @@ rust.unexpected_cfgs = { level = "warn", check-cfg = [
 ] }
 
 [patch.crates-io]
-bevy_egui = { git = "https://github.com/Vrixyz/bevy_egui", branch = "bevy_main" }
 
 [profile.release]
 opt-level = 'z'
