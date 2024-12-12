@@ -91,7 +91,7 @@ pub fn update_ui(
         ui.label(format!("Particle count: {}", physics.particles.len()));
 
         CollapsingHeader::new(format!("GPU runtime: {:.3}ms", timings.total_time()))
-            .id_source("GPU runtimes")
+            .id_salt("GPU runtimes")
             .show(ui, |ui| {
                 ui.label(format!("Grid sort: {:.3}ms", timings.grid_sort));
                 ui.label(format!("P2G: {:.3}ms", timings.p2g));

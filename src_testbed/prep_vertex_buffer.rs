@@ -1,3 +1,6 @@
+use crate::wgsparkl::grid::grid::{GpuGrid, WgGrid};
+use crate::wgsparkl::solver::WgParticle;
+use crate::wgsparkl::solver::{GpuParticles, GpuSimulationParams};
 use naga_oil::compose::{ComposableModuleDescriptor, Composer, NagaModuleDescriptor};
 use wgcore::composer::ComposerExt;
 use wgcore::kernel::{KernelInvocationBuilder, KernelInvocationQueue};
@@ -6,9 +9,6 @@ use wgcore::{utils, Shader};
 use wgebra::WgSvd2;
 use wgebra::WgSvd3;
 use wgpu::{Buffer, BufferUsages, ComputePipeline, Device};
-use wgsparkl::grid::grid::{GpuGrid, WgGrid};
-use wgsparkl::solver::WgParticle;
-use wgsparkl::solver::{GpuParticles, GpuSimulationParams};
 
 pub enum RenderMode {
     Default = 0,

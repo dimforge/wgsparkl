@@ -12,13 +12,13 @@ use bevy::render::render_resource::BufferUsages;
 use bevy::render::renderer::RenderDevice;
 use bevy::render::view::NoFrustumCulling;
 // use bevy_editor_cam::prelude::{EditorCam, EnabledMotion};
+use crate::wgsparkl::pipeline::MpmPipeline;
 use std::sync::Arc;
 use wgcore::hot_reloading::HotReloadState;
 use wgcore::tensor::GpuVector;
 use wgcore::timestamps::GpuTimestamps;
 use wgcore::Shader;
 use wgpu::Features;
-use wgsparkl::pipeline::MpmPipeline;
 
 /// set up a simple 3D scene
 pub fn setup_app(mut commands: Commands, device: Res<RenderDevice>) {

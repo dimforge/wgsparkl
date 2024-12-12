@@ -4,14 +4,14 @@ pub extern crate wgsparkl2d as wgsparkl;
 pub extern crate wgsparkl3d as wgsparkl;
 
 #[cfg(feature = "dim2")]
-pub use instancing2d as instancing;
-#[cfg(feature = "dim3")]
-pub use instancing3d as instancing;
-
-#[cfg(feature = "dim2")]
 pub mod instancing2d;
 #[cfg(feature = "dim3")]
 pub mod instancing3d;
+
+#[cfg(feature = "dim2")]
+pub use instancing2d as instancing;
+#[cfg(feature = "dim3")]
+pub use instancing3d as instancing;
 
 mod hot_reload;
 pub mod prep_vertex_buffer;
