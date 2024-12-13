@@ -23,7 +23,7 @@ use bevy::asset::load_internal_asset;
 use bevy::ecs::system::SystemId;
 use bevy::prelude::*;
 // use bevy_editor_cam::prelude::DefaultEditorCamPlugins;
-// use bevy_wasm_window_resize::WindowResizePlugin;
+use bevy_wasm_window_resize::WindowResizePlugin;
 use instancing::INSTANCING_SHADER_HANDLE;
 use prep_vertex_buffer::{GpuRenderConfig, RenderConfig, WgPrepVertexBuffer};
 use wgcore::hot_reloading::HotReloadState;
@@ -35,7 +35,7 @@ use wgsparkl::{
 
 pub fn init_testbed(app: &mut App) {
     app.add_plugins(DefaultPlugins)
-        // .add_plugins(WindowResizePlugin)
+        .add_plugins(WindowResizePlugin)
         // .add_plugins((
         //     bevy_mod_picking::DefaultPickingPlugins,
         //     DefaultEditorCamPlugins,

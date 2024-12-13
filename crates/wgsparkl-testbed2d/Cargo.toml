@@ -36,7 +36,7 @@ bevy = { version = "0.15.0", features = [
     "shader_format_spirv",
     "webgpu",
 ] }
-#bevy_wasm_window_resize = "0.4"
+bevy_wasm_window_resize = { version = "0.5", git = "https://github.com/Leinnan/bevy_wasm_window_resize.git", rev = "d144fe33c0a52e1c18942487a9bc8ff99e7dab20" }
 #bevy_editor_cam = "0.3"
 #bevy_mod_picking = { version = "0.20", default-features = false }
 bevy_egui = { version = "0.31", default-features = false, features = [
