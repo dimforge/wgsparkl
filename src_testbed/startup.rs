@@ -1,6 +1,7 @@
 use crate::instancing::{InstanceBuffer, InstanceData, InstanceMaterialData};
 use crate::prep_vertex_buffer::{GpuRenderConfig, RenderConfig, RenderMode, WgPrepVertexBuffer};
 use crate::step::TimestampChannel;
+use crate::wgsparkl::pipeline::MpmPipeline;
 use crate::{AppState, PhysicsContext, RunState, Timestamps};
 use bevy::asset::Assets;
 use bevy::color::Color;
@@ -11,8 +12,7 @@ use bevy::prelude::*;
 use bevy::render::render_resource::BufferUsages;
 use bevy::render::renderer::RenderDevice;
 use bevy::render::view::NoFrustumCulling;
-// use bevy_editor_cam::prelude::{EditorCam, EnabledMotion};
-use crate::wgsparkl::pipeline::MpmPipeline;
+use bevy_editor_cam::prelude::EditorCam;
 use std::sync::Arc;
 use wgcore::hot_reloading::HotReloadState;
 use wgcore::tensor::GpuVector;
@@ -66,33 +66,31 @@ pub fn setup_app(mut commands: Commands, device: Res<RenderDevice>) {
     #[cfg(feature = "dim2")]
     {
         commands.spawn((
-            Camera3dBundle {
-                transform: Transform::from_translation(Vec3::new(25.0, 25.0, 100.0)),
-                // projection: Projection::Orthographic(OrthographicProjection {
-                //     // scaling_mode: ScalingMode::FixedVertical(6.0),
-                //     ..OrthographicProjection::default_3d()
-                // }),
-                ..default()
+            Camera2d::default(),
+            Transform::from_translation(Vec3::new(25.0, 25.0, 100.0)),
+            Projection::Orthographic(OrthographicProjection {
+                scaling_mode: bevy::render::camera::ScalingMode::FixedVertical {
+                    viewport_height: 6.0,
+                },
+                ..OrthographicProjection::default_3d()
+            }),
+            EditorCam {
+                enabled_motion: bevy_editor_cam::prelude::EnabledMotion {
+                    orbit: false,
+                    ..Default::default()
+                },
+                last_anchor_depth: -99.0,
+                ..Default::default()
             },
-            // EditorCam {
-            //     enabled_motion: EnabledMotion {
-            //         orbit: false,
-            //         ..Default::default()
-            //     },
-            //     last_anchor_depth: -99.0,
-            //     ..Default::default()
-            // },
         ));
     }
 
     #[cfg(feature = "dim3")]
     {
         commands.spawn((
-            Camera3dBundle {
-                transform: Transform::from_translation(Vec3::new(0.0, 1.5, 5.0)),
-                ..default()
-            },
-            // EditorCam::default(),
+            Camera3d::default(),
+            Transform::from_translation(Vec3::new(0.0, 1.5, 5.0)),
+            EditorCam::default(),
         ));
     }
 }
@@ -150,7 +148,8 @@ pub fn setup_graphics(
     let num_instances = instances.len();
     commands.spawn((
         Mesh3d(cube),
-        SpatialBundle::INHERITED_IDENTITY,
+        Transform::default(),
+        Visibility::default(),
         InstanceMaterialData {
             data: instances,
             buffer: InstanceBuffer {
