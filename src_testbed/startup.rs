@@ -72,7 +72,7 @@ pub fn setup_app(mut commands: Commands, device: Res<RenderDevice>) {
                 scaling_mode: bevy::render::camera::ScalingMode::FixedVertical {
                     viewport_height: 6.0,
                 },
-                ..OrthographicProjection::default_3d()
+                ..OrthographicProjection::default_2d()
             }),
             EditorCam {
                 enabled_motion: bevy_editor_cam::prelude::EnabledMotion {
