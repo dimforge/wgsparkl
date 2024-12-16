@@ -36,10 +36,7 @@ use wgsparkl::{
 pub fn init_testbed(app: &mut App) {
     app.add_plugins(DefaultPlugins)
         .add_plugins(WindowResizePlugin)
-        .add_plugins((
-            //     bevy_mod_picking::DefaultPickingPlugins,
-            DefaultEditorCamPlugins,
-        ))
+        .add_plugins(DefaultEditorCamPlugins)
         .add_plugins(instancing::ParticlesMaterialPlugin)
         .add_plugins(bevy_egui::EguiPlugin)
         .init_resource::<SceneInits>()
