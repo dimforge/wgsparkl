@@ -66,14 +66,15 @@ pub fn setup_app(mut commands: Commands, device: Res<RenderDevice>) {
     #[cfg(feature = "dim2")]
     {
         commands.spawn((
-            Camera2d::default(),
+            Camera3d::default(),
             Transform::from_translation(Vec3::new(25.0, 25.0, 100.0)),
-            Projection::Orthographic(OrthographicProjection {
+            /*Projection::Orthographic(OrthographicProjection {
                 scaling_mode: bevy::render::camera::ScalingMode::FixedVertical {
                     viewport_height: 6.0,
                 },
                 ..OrthographicProjection::default_2d()
             }),
+            */
             EditorCam {
                 enabled_motion: bevy_editor_cam::prelude::EnabledMotion {
                     orbit: false,
