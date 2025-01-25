@@ -80,6 +80,15 @@ fn sand_demo(mut commands: Commands, device: Res<RenderDevice>, mut app_state: R
     const ANGVEL: f32 = 0.0; // 2.0;
     let colliders = vec![
         BodyDesc {
+            shape: GpuCuboid::new(vector![5.0, 5.0]),
+            pose: GpuSim2::from(Similarity2::new(vector![35.0, 100.0], 0.0, 1.0)),
+            vel: GpuVelocity {
+                linear: Vector2::zeros(),
+                angular: ANGVEL,
+            },
+            ..BodyDesc::default()
+        },
+        BodyDesc {
             shape: GpuCuboid::new(vector![1000.0, 1.0]),
             pose: GpuSim2::from(Similarity2::new(vector![0.0, -1.0], 0.0, 1.0)),
             ..Default::default()

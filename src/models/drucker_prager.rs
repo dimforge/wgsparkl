@@ -59,4 +59,4 @@ impl Default for DruckerPragerPlasticState {
 )]
 pub struct WgDruckerPrager;
 
-wgcore::test_shader_compilation!(WgDruckerPrager);
+wgcore::test_shader_compilation!(WgDruckerPrager, wgcore, crate::dim_shader_defs());

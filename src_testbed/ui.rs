@@ -37,7 +37,7 @@ pub fn update_ui(
         egui::ComboBox::from_label("render mode")
             .selected_text(RenderMode::from_u32(app_state.render_config.mode).text())
             .show_ui(ui, |ui| {
-                for i in 0..3 {
+                for i in 0..6 {
                     changed = ui
                         .selectable_value(
                             &mut app_state.render_config.mode,
@@ -91,7 +91,7 @@ pub fn update_ui(
         ui.label(format!("Particle count: {}", physics.particles.len()));
 
         CollapsingHeader::new(format!("GPU runtime: {:.3}ms", timings.total_time()))
-            .id_source("GPU runtimes")
+            .id_salt("GPU runtimes")
             .show(ui, |ui| {
                 ui.label(format!("Grid sort: {:.3}ms", timings.grid_sort));
                 ui.label(format!("P2G: {:.3}ms", timings.p2g));

@@ -50,6 +50,17 @@ pub fn step_simulation(
         queue.encode(&mut encoder, timings.timestamps.as_mut());
     }
 
+    physics
+        .data
+        .grid
+        .nodes_cdf_staging
+        .copy_from(&mut encoder, &physics.data.grid.nodes_cdf);
+    physics
+        .data
+        .particles
+        .cdf_read
+        .copy_from_encased(&mut encoder, &physics.data.particles.cdf);
+
     timings.timestamps.as_mut().map(|t| t.resolve(&mut encoder));
 
     // Prepare the vertex buffer.
@@ -68,6 +79,25 @@ pub fn step_simulation(
 
     // Submit.
     compute_queue.submit(Some(encoder.finish()));
+
+    let buf =
+        futures::executor::block_on(physics.data.grid.nodes_cdf_staging.read(device)).unwrap();
+    println!(
+        "{:?}, any nonzero: {}",
+        &buf[..100],
+        buf.iter().any(|e| e.affinities != 0)
+    );
+
+    let buf =
+        futures::executor::block_on(physics.data.particles.cdf_read.read_encased(device)).unwrap();
+    println!(
+        "{:x?}, any nonzero: {}",
+        &buf.iter()
+            .filter(|e| e.affinity != 0)
+            .take(100)
+            .collect::<Vec<_>>(),
+        buf.iter().any(|e| e.affinity != 0)
+    );
 
     if let Some(timestamps) = std::mem::take(&mut timings.timestamps) {
         let timings_snd = timings_channel.snd.clone();

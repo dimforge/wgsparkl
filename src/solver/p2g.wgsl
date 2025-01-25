@@ -19,8 +19,10 @@ var<storage, read> particles_affine: array<mat2x2<f32>>;
 var<storage, read> particles_affine: array<mat3x3<f32>>;
 #endif
 @group(1) @binding(4)
-var<storage, read> nodes_linked_lists: array<Grid::NodeLinkedList>;
+var<storage, read> particles_cdf: array<Particle::Cdf>;
 @group(1) @binding(5)
+var<storage, read> nodes_linked_lists: array<Grid::NodeLinkedList>;
+@group(1) @binding(6)
 var<storage, read> particle_node_linked_lists: array<u32>;
 
 
@@ -41,6 +43,7 @@ var<workgroup> shared_affine: array<mat3x3<f32>, NUM_SHARED_CELLS>;
 #endif
 var<workgroup> shared_nodes: array<SharedNode, NUM_SHARED_CELLS>;
 var<workgroup> shared_pos: array<Particle::Position, NUM_SHARED_CELLS>;
+var<workgroup> shared_affinities: array<u32, NUM_SHARED_CELLS>;
 // TODO: is computing themax with an atomic faster than doing a reduction?
 var<workgroup> max_linked_list_length: atomic<u32>;
 // NOTE: workgroupUniformLoad doesn’t work on atomics, so we need that additional variable
@@ -86,14 +89,18 @@ fn p2g(
     let packed_cell_index_in_block = flatten_shared_index(tid.x + 4u, tid.y + 4u, tid.z + 4u);
 #endif
 
+    // TODO: we store the global_id in shared memory for convenience. Should we just recompute it instead?
+    let global_id = shared_nodes[packed_cell_index_in_block].global_id;
+    let node_affinities = Grid::nodes_cdf[global_id].affinities;
+
     // NOTE: read the linked list with workgroupUniformLoad so that is is considered
-    //       part of a uniform execution flow (for the barriers to be valids).
+    //       part of a uniform execution flow (for the barriers to be valid).
     let len = workgroupUniformLoad(&max_linked_list_length_uniform);
     for (var i = 0u; i < len; i += 1u) {
         workgroupBarrier();
         fetch_next_particle(tid);
         workgroupBarrier();
-        new_momentum_velocity_mass += p2g_step(packed_cell_index_in_block, Grid::grid.cell_width);
+        new_momentum_velocity_mass += p2g_step(packed_cell_index_in_block, Grid::grid.cell_width, node_affinities);
     }
 
     // Grid update.
@@ -110,15 +117,13 @@ fn p2g(
 //       we should consider doing the cell update in the p2g kernel.
 
     // Write the node state to global memory.
-    // TODO: we store the global_id in shared memory for convenience. Should we just recompute it instead?
-    let global_id = shared_nodes[packed_cell_index_in_block].global_id;
     Grid::nodes[global_id].momentum_velocity_mass = new_momentum_velocity_mass;
 }
 
 #if DIM == 2
-fn p2g_step(packed_cell_index_in_block: u32, cell_width: f32) -> vec3<f32> {
+fn p2g_step(packed_cell_index_in_block: u32, cell_width: f32, node_affinity: u32) -> vec3<f32> {
 #else
-fn p2g_step(packed_cell_index_in_block: u32, cell_width: f32) -> vec4<f32> {
+fn p2g_step(packed_cell_index_in_block: u32, cell_width: f32, node_affinity: u32) -> vec4<f32> {
 #endif
     // NOTE: having these into a var is needed so we can index [i] them.
     //       Does this have any impact on performances?
@@ -137,6 +142,12 @@ fn p2g_step(packed_cell_index_in_block: u32, cell_width: f32) -> vec4<f32> {
     for (var i = 0u; i < Kernel::NBH_LEN; i += 1u) {
         let packed_shift = NBH_SHIFTS_SHARED[i];
         let nbh_shared_index = packed_cell_index_in_block - bottommost_contributing_node + packed_shift;
+
+        // PERF: is it faster to branch here or to just make the += conditional with a select?
+        let particle_affinity = shared_affinities[nbh_shared_index];
+        if !Grid::affinities_are_compatible(node_affinity, particle_affinity) {
+            continue;
+        }
 
 #if DIM == 2
         let shift = vec2(2u, 2) - NBH_SHIFTS[i];
@@ -292,6 +303,7 @@ fn fetch_next_particle(tid: vec3<u32>) {
                 let curr_particle_id = (*shared_node).particle_id;
 
                 if curr_particle_id != Grid::NONE {
+                    shared_affinities[shared_flat_index] = particles_cdf[curr_particle_id].affinity;
                     shared_pos[shared_flat_index] = particles_pos[curr_particle_id];
                     shared_affine[shared_flat_index] = particles_affine[curr_particle_id];
 
@@ -307,6 +319,7 @@ fn fetch_next_particle(tid: vec3<u32>) {
                     // TODO: would it be worth skipping writing zeros if we already
                     //       did it at the previous step? (if we already reached the end
                     //       of the particle linked list)
+                    shared_affinities[shared_flat_index] = 0u;
 #if DIM == 2
                     shared_pos[shared_flat_index].pt = vec2(0.0);
                     shared_affine[shared_flat_index] = mat2x2(vec2(0.0), vec2(0.0));

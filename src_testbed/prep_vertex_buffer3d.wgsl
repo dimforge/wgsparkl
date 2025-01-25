@@ -14,10 +14,12 @@ var<storage, read> particles_vol: array<Particle::Volume>;
 @group(0) @binding(3)
 var<storage, read> particles_vel: array<Particle::Velocity>;
 @group(0) @binding(4)
-var<storage, read_write> grid: Grid::Grid;
+var<storage, read> particles_cdf: array<Particle::Cdf>;
 @group(0) @binding(5)
-var<uniform> params: Params::SimulationParams;
+var<storage, read_write> grid: Grid::Grid;
 @group(0) @binding(6)
+var<uniform> params: Params::SimulationParams;
+@group(0) @binding(7)
 var<storage, read> config: RenderConfig;
 
 struct RenderConfig {
@@ -27,6 +29,7 @@ struct RenderConfig {
 const DEFAULT: u32 = 0;
 const VOLUME: u32 = 1;
 const VELOCITY: u32 = 2;
+const CDF: u32 = 3;
 
 
 struct InstanceData {
@@ -61,6 +64,9 @@ fn main(
             let svd = Svd3::svd(def_grad);
             let color_xyz = (vec3(1.0) - svd.S) / 0.005 + vec3(0.2);
             instances[particle_id].color = vec4(color_xyz, color.w);
+        } else if config.mode == CDF {
+            let n = particles_cdf[particle_id].normal;
+            instances[particle_id].color = vec4(abs(n) * dt * 100.0 + vec2(0.2), color.w);
         }
     }
 }

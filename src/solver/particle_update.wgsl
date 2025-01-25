@@ -31,14 +31,16 @@ var<storage, read_write> particles_affine: array<mat2x2<f32>>;
 var<storage, read_write> particles_affine: array<mat3x3<f32>>;
 #endif
 @group(1) @binding(4)
-var<storage, read> constitutive_model: array<ConstitutiveModel::ElasticCoefficients>;
+var<storage, read> particles_cdf: array<Particle::Cdf>;
 @group(1) @binding(5)
-var<storage, read> plasticity: array<DruckerPrager::Plasticity>;
+var<storage, read> constitutive_model: array<ConstitutiveModel::ElasticCoefficients>;
 @group(1) @binding(6)
-var<storage, read_write> plastic_state: array<DruckerPrager::PlasticState>;
+var<storage, read> plasticity: array<DruckerPrager::Plasticity>;
 @group(1) @binding(7)
-var<storage, read_write> phases: array<Phase>;
+var<storage, read_write> plastic_state: array<DruckerPrager::PlasticState>;
 @group(1) @binding(8)
+var<storage, read_write> phases: array<Phase>;
+@group(1) @binding(9)
 var<uniform> params: Params::SimulationParams;
 
 @group(2) @binding(0)
@@ -66,45 +68,29 @@ fn main(
     let velocity_gradient = particles_affine[particle_id]; // The velocity gradient was stored in the affine buffer.
     var new_particle_vel = particles_vel[particle_id].v;
     let particle_pos = particles_pos[particle_id].pt;
+    let cdf = particles_cdf[particle_id];
+    let curr_particle_vol = particles_vol[particle_id];
 
     /*
      * Advection.
      */
+    if cdf.signed_distance < -0.05 * cell_width {
+        new_particle_vel = project_velocity(new_particle_vel, cdf.normal);
+    }
     let new_particle_pos = particle_pos + new_particle_vel * dt;
 
     /*
-     * Collision detection.
+     * Penalty impulse.
      */
-
-     /*
-    for (var i = 0u; i < arrayLength(&collision_shapes); i++) {
-        let shape = collision_shapes[i];
-        let shape_pose = collision_shape_poses[i];
-        let proj = Cuboid::projectPointOnBoundary(shape, shape_pose, new_particle_pos);
-
-        if proj.is_inside {
-            // Apply the unilateral constraint (prevent further penetrations).
-            let dpt = proj.point - new_particle_pos;
-            let dist = length(dpt);
-
-            if dist > 0.0 {
-                // Penalty force.
-                let normal = dpt / dist;
-                new_particle_vel += normal * dist / dt / 100.0;
-
-//                 let mprops = body_mprops[i];
-//                 let vels = body_vels[i];
-//                 result_vel += Body::velocity_at_point(mprops.com, vels, point);
-            }
-        }
-    }
-    */
-
+     const PENALTY_COEFF: f32 = 1.0e3;
+     if cdf.signed_distance < -0.05 * cell_width && cdf.signed_distance > -0.3 * cell_width {
+         let impulse = (dt * -cdf.signed_distance * PENALTY_COEFF) * cdf.normal;
+         new_particle_vel += impulse / curr_particle_vol.mass;
+     }
 
     /*
      * Deformation gradient update.
      */
-    let curr_particle_vol = particles_vol[particle_id];
     let curr_deformation_gradient = Particle::deformation_gradient(curr_particle_vol);
     var new_deformation_gradient = curr_deformation_gradient +
        (velocity_gradient * dt) * curr_deformation_gradient;
@@ -158,4 +144,16 @@ fn main(
     particles_vel[particle_id].v = new_particle_vel;
     particles_vol[particle_id] = Particle::set_deformation_gradient(curr_particle_vol, new_deformation_gradient);
     particles_affine[particle_id] = affine;
+}
+
+fn project_velocity(vel: vec2<f32>, n: vec2<f32>) -> vec2<f32> {
+    // TODO: this should depend on the collider’s material
+    //       properties.
+    let normal_vel = dot(vel, n);
+
+    if normal_vel < 0.0 {
+        return vel - n * normal_vel;
+    } else {
+        return vel;
+    }
 }

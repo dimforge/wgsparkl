@@ -14,6 +14,17 @@ struct Volume {
     packed: mat3x4<f32>
 }
 
+struct Cdf {
+    // Should we pack this?
+    normal: vec3<f32>,
+    signed_distance: f32,
+    affinity: u32,
+}
+
+fn default_cdf() -> Cdf {
+    return Cdf(vec3(0.0), 0.0, 0);
+}
+
 fn deformation_gradient(volume: Volume) -> mat3x3<f32> {
     return mat3x3(volume.packed.x.xyz, volume.packed.y.xyz, volume.packed.z.xyz);
 }

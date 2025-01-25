@@ -11,7 +11,7 @@ use bevy::prelude::*;
 use bevy::render::render_resource::BufferUsages;
 use bevy::render::renderer::RenderDevice;
 use bevy::render::view::NoFrustumCulling;
-// use bevy_editor_cam::prelude::{EditorCam, EnabledMotion};
+use bevy_editor_cam::prelude::{EditorCam, EnabledMotion};
 use std::sync::Arc;
 use wgcore::hot_reloading::HotReloadState;
 use wgcore::tensor::GpuVector;
@@ -74,14 +74,14 @@ pub fn setup_app(mut commands: Commands, device: Res<RenderDevice>) {
                 // }),
                 ..default()
             },
-            // EditorCam {
-            //     enabled_motion: EnabledMotion {
-            //         orbit: false,
-            //         ..Default::default()
-            //     },
-            //     last_anchor_depth: -99.0,
-            //     ..Default::default()
-            // },
+            EditorCam {
+                enabled_motion: EnabledMotion {
+                    orbit: false,
+                    ..Default::default()
+                },
+                last_anchor_depth: -99.0,
+                ..Default::default()
+            },
         ));
     }
 
@@ -92,7 +92,7 @@ pub fn setup_app(mut commands: Commands, device: Res<RenderDevice>) {
                 transform: Transform::from_translation(Vec3::new(0.0, 1.5, 5.0)),
                 ..default()
             },
-            // EditorCam::default(),
+            EditorCam::default(),
         ));
     }
 }

@@ -1,6 +1,7 @@
 #define_import_path wgsparkl::collision::collide
 #import wgparry::cuboid as Cuboid;
 #import wgrapier::body as Body;
+#import wgsparkl::grid::grid as Grid;
 
 #if DIM == 2
 #import wgebra::sim2 as Pose;
@@ -19,40 +20,31 @@ var<storage, read> collision_shape_poses: array<Transform>;
 //var<storage, read> body_mprops: array<Body::MassProperties>;
 
 
-fn collide(point: Vector, velocity: Vector) -> Vector {
-    var result_vel = velocity;
+fn collide(cell_width: f32, point: Vector) -> Grid::NodeCdf {
+    const MAX_FLT: f32 = 3.40282347E+38; // Is that constant already defined somewhere in WGSL?
+    var cdf = Grid::NodeCdf(MAX_FLT, 0u);
+
+#if DIM == 2
+    let dist_cap = vec2(cell_width * 1.5);
+#else
+    let dist_cap = vec3(cell_width * 1.5);
+#endif
 
     // TODO: don’t  rely on the array length, e.g., if the user wants to
     //       preallocate the array to add more dynamically.
     for (var i = 0u; i < arrayLength(&collision_shapes); i++) {
+        // FIXME: figure out a way to support more than 16 colliders.
         let shape = collision_shapes[i];
         let shape_pose = collision_shape_poses[i];
         let proj = Cuboid::projectPointOnBoundary(shape, shape_pose, point);
+        let dpt = proj.point - point;
 
-        // TODO: make a branchless version of this?
-        if proj.is_inside {
-            // Apply the unilateral constraint (prevent further penetrations).
-            let dpt = proj.point - point;
+        if all(abs(dpt) <= dist_cap) {
             let dist = length(dpt);
-
-            if dist > 0.0 {
-                let normal = dpt / dist;
-                let signed_normal_vel = dot(normal, velocity);
-
-                if signed_normal_vel < 0.0 {
-                    let tangent_vel = velocity - signed_normal_vel * normal;
-                    let tangent_vel_norm = length(tangent_vel);
-
-                    if tangent_vel_norm > 1.0e-10 {
-                        let friction = 0.7; // TODO: make this configurable
-                        result_vel = tangent_vel / tangent_vel_norm * max(tangent_vel_norm + signed_normal_vel * friction, 0.0f);
-                    } else {
-                        result_vel = Vector(0.0);
-                    }
-                }
-            }
+            cdf.distance = min(cdf.distance, dist);
+            cdf.affinities |= select(0x00000001u, 0x00010001u, proj.is_inside) << i;
         }
     }
 
-    return result_vel;
+    return cdf;
 }

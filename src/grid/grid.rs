@@ -2,11 +2,10 @@ use crate::dim_shader_defs;
 use crate::grid::prefix_sum::{PrefixSumWorkspace, WgPrefixSum};
 use crate::grid::sort::WgSort;
 use crate::solver::{GpuParticles, WgParams};
-use naga_oil::compose::NagaModuleDescriptor;
 use std::sync::Arc;
 use wgcore::kernel::{KernelInvocationBuilder, KernelInvocationQueue};
 use wgcore::tensor::{GpuScalar, GpuVector};
-use wgcore::{utils, Shader};
+use wgcore::Shader;
 use wgpu::util::DispatchIndirectArgs;
 use wgpu::{Buffer, BufferAddress, BufferDescriptor, BufferUsages, ComputePipeline, Device};
 
@@ -133,6 +132,7 @@ impl WgGrid {
                     (grid.meta.buffer(), 0),
                     (grid.nodes.buffer(), 3),
                     (grid.nodes_linked_lists.buffer(), 6),
+                    (grid.nodes_cdf.buffer(), 9),
                 ],
             )
             .queue_indirect(n_block_groups.clone());
@@ -207,11 +207,20 @@ pub struct GpuActiveBlockHeader {
     num_particles: u32,
 }
 
+#[derive(bytemuck::Pod, bytemuck::Zeroable, Copy, Clone, PartialEq, Default, Debug)]
+#[repr(C)]
+pub struct GpuGridNodeCdf {
+    pub distance: f32,
+    pub affinities: u32,
+}
+
 pub struct GpuGrid {
     pub cpu_meta: GpuGridMetadata,
     pub meta: GpuScalar<GpuGridMetadata>,
     pub hmap_entries: GpuVector<GpuGridHashMapEntry>,
     pub nodes: GpuVector<GpuGridNode>,
+    pub nodes_cdf: GpuVector<GpuGridNodeCdf>,
+    pub nodes_cdf_staging: GpuVector<GpuGridNodeCdf>,
     pub active_blocks: GpuVector<GpuActiveBlockHeader>,
     pub scan_values: GpuVector<u32>,
     pub nodes_linked_lists: GpuVector<[u32; 2]>,
@@ -237,6 +246,16 @@ impl GpuGrid {
         );
         let hmap_entries = GpuVector::uninit(device, capacity, BufferUsages::STORAGE);
         let nodes = GpuVector::uninit(device, capacity * NODES_PER_BLOCK, BufferUsages::STORAGE);
+        let nodes_cdf = GpuVector::uninit(
+            device,
+            capacity * NODES_PER_BLOCK,
+            BufferUsages::STORAGE | BufferUsages::COPY_SRC,
+        );
+        let nodes_cdf_staging = GpuVector::uninit(
+            device,
+            capacity * NODES_PER_BLOCK,
+            BufferUsages::COPY_DST | BufferUsages::MAP_READ,
+        );
         let nodes_linked_lists =
             GpuVector::uninit(device, capacity * NODES_PER_BLOCK, BufferUsages::STORAGE);
         let active_blocks = GpuVector::uninit(device, capacity, BufferUsages::STORAGE);
@@ -260,6 +279,8 @@ impl GpuGrid {
             meta,
             hmap_entries,
             nodes,
+            nodes_cdf,
+            nodes_cdf_staging,
             active_blocks,
             scan_values,
             indirect_n_blocks_groups,

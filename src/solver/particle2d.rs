@@ -31,6 +31,14 @@ impl ParticleMassProps {
     }
 }
 
+#[derive(Copy, Clone, PartialEq, Debug, Default, ShaderType)]
+#[repr(C)]
+pub struct Cdf {
+    pub normal: Vector2<f32>,
+    pub signed_distance: f32,
+    pub affinity: u32,
+}
+
 #[derive(Copy, Clone, Debug)]
 pub struct Particle {
     pub position: Vector2<f32>,
@@ -44,6 +52,8 @@ pub struct Particle {
 pub struct GpuParticles {
     pub positions: GpuVector<Vector2<f32>>,
     pub velocities: GpuVector<Vector2<f32>>,
+    pub cdf: GpuVector<Cdf>,
+    pub cdf_read: GpuVector<Cdf>,
     pub volumes: GpuVector<ParticleMassProps>,
     pub affines: GpuVector<Matrix2<f32>>,
     pub sorted_ids: GpuVector<u32>,
@@ -59,6 +69,7 @@ impl GpuParticles {
         let positions: Vec<_> = particles.iter().map(|p| p.position).collect();
         let velocities: Vec<_> = particles.iter().map(|p| p.velocity).collect();
         let volumes: Vec<_> = particles.iter().map(|p| p.volume).collect();
+        let cdf = vec![Cdf::default(); particles.len()];
 
         Self {
             positions: GpuVector::init(device, &positions, BufferUsages::STORAGE),
@@ -66,6 +77,12 @@ impl GpuParticles {
             volumes: GpuVector::encase(device, &volumes, BufferUsages::STORAGE),
             sorted_ids: GpuVector::uninit(device, particles.len() as u32, BufferUsages::STORAGE),
             affines: GpuVector::uninit(device, particles.len() as u32, BufferUsages::STORAGE),
+            cdf: GpuVector::encase(device, &cdf, BufferUsages::STORAGE | BufferUsages::COPY_SRC),
+            cdf_read: GpuVector::encase(
+                device,
+                &cdf,
+                BufferUsages::COPY_DST | BufferUsages::MAP_READ,
+            ),
             node_linked_lists: GpuVector::uninit(
                 device,
                 particles.len() as u32,

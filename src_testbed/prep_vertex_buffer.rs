@@ -1,8 +1,6 @@
-use naga_oil::compose::{ComposableModuleDescriptor, Composer, NagaModuleDescriptor};
-use wgcore::composer::ComposerExt;
 use wgcore::kernel::{KernelInvocationBuilder, KernelInvocationQueue};
 use wgcore::tensor::GpuScalar;
-use wgcore::{utils, Shader};
+use wgcore::Shader;
 use wgebra::WgSvd2;
 use wgebra::WgSvd3;
 use wgpu::{Buffer, BufferUsages, ComputePipeline, Device};
@@ -14,6 +12,9 @@ pub enum RenderMode {
     Default = 0,
     Volume = 1,
     Velocity = 2,
+    CdfNormals = 3,
+    CdfDistances = 4,
+    CdfSigns = 5,
 }
 
 impl RenderMode {
@@ -22,6 +23,9 @@ impl RenderMode {
             Self::Default => "default",
             Self::Volume => "volume",
             Self::Velocity => "velocity",
+            Self::CdfNormals => "cdf (normals)",
+            Self::CdfDistances => "cdf (distances)",
+            Self::CdfSigns => "cdf (signs)",
         }
     }
 
@@ -30,6 +34,9 @@ impl RenderMode {
             0 => Self::Default,
             1 => Self::Volume,
             2 => Self::Velocity,
+            3 => Self::CdfNormals,
+            4 => Self::CdfDistances,
+            5 => Self::CdfSigns,
             _ => unreachable!(),
         }
     }
@@ -87,6 +94,7 @@ impl WgPrepVertexBuffer {
                 particles.positions.buffer(),
                 particles.volumes.buffer(),
                 particles.velocities.buffer(),
+                particles.cdf.buffer(),
                 grid.meta.buffer(),
                 params.params.buffer(),
                 config.buffer.buffer(),

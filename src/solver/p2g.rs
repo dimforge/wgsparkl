@@ -5,9 +5,8 @@ use crate::models::WgLinearElasticity;
 use crate::solver::params::WgParams;
 use crate::solver::GpuParticles;
 use crate::solver::WgParticle;
-use naga_oil::compose::NagaModuleDescriptor;
 use wgcore::kernel::{KernelInvocationBuilder, KernelInvocationQueue};
-use wgcore::{utils, Shader};
+use wgcore::Shader;
 use wgpu::ComputePipeline;
 
 #[derive(Shader)]
@@ -28,13 +27,14 @@ impl WgP2G {
         particles: &GpuParticles,
     ) {
         KernelInvocationBuilder::new(queue, &self.p2g)
-            .bind(
+            .bind_at(
                 0,
                 [
-                    grid.meta.buffer(),
-                    grid.hmap_entries.buffer(),
-                    grid.active_blocks.buffer(),
-                    grid.nodes.buffer(),
+                    (grid.meta.buffer(), 0),
+                    (grid.hmap_entries.buffer(), 1),
+                    (grid.active_blocks.buffer(), 2),
+                    (grid.nodes.buffer(), 3),
+                    (grid.nodes_cdf.buffer(), 9),
                 ],
             )
             .bind(
@@ -44,6 +44,7 @@ impl WgP2G {
                     particles.velocities.buffer(),
                     particles.volumes.buffer(),
                     particles.affines.buffer(),
+                    particles.cdf.buffer(),
                     grid.nodes_linked_lists.buffer(),
                     particles.node_linked_lists.buffer(),
                 ],
@@ -52,4 +53,4 @@ impl WgP2G {
     }
 }
 
-wgcore::test_shader_compilation!(WgP2G);
+wgcore::test_shader_compilation!(WgP2G, wgcore, crate::dim_shader_defs());

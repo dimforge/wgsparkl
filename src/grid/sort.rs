@@ -1,8 +1,7 @@
 use crate::dim_shader_defs;
 use crate::grid::grid::WgGrid;
 use crate::solver::WgParticle;
-use naga_oil::compose::NagaModuleDescriptor;
-use wgcore::{utils, Shader};
+use wgcore::Shader;
 use wgpu::ComputePipeline;
 
 #[derive(Shader)]
@@ -41,8 +40,10 @@ impl TouchParticleBlocks {
             compilation_options: Default::default(),
             cache: None,
         });
-        Self { touch_particle_blocks: compute_pipeline }
+        Self {
+            touch_particle_blocks: compute_pipeline,
+        }
     }
 }
 
-wgcore::test_shader_compilation!(WgSort);
+wgcore::test_shader_compilation!(WgSort, wgcore, crate::dim_shader_defs());

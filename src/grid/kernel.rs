@@ -5,4 +5,4 @@ use wgcore::Shader;
 #[shader(src = "kernel.wgsl", shader_defs = "dim_shader_defs")]
 pub struct WgKernel;
 
-wgcore::test_shader_compilation!(WgKernel);
+wgcore::test_shader_compilation!(WgKernel, wgcore, crate::dim_shader_defs());

@@ -20,6 +20,8 @@ var<storage, read_write> nodes_linked_lists: array<NodeLinkedListAtomic>;
 var<storage, read_write> n_g2p_p2g_groups: DispatchIndirectArgs;
 @group(0) @binding(8)
 var<storage, read_write> num_collisions: array<atomic<u32>>;
+@group(0) @binding(9)
+var<storage, read_write> nodes_cdf: array<NodeCdf>;
 
 
 struct NodeLinkedListAtomic {
@@ -223,6 +225,31 @@ struct Grid {
     capacity: u32,
 }
 
+const AFFINITY_BITS_MASK: u32 = 0x0000ffffu;
+const SIGN_BITS_SHIFT: u32 = 16;
+
+struct NodeCdf {
+    distance: f32,
+    // Two bits per collider.
+    // The 16 first bits are for affinity, the 16 last are for signs.
+    affinities: u32,
+}
+
+fn affinity_bit(i_collider: u32, affinity: u32) -> bool {
+    return (affinity & (1u << i_collider)) != 0;
+}
+
+fn sign_bit(i_collider: u32, affinity: u32) -> bool {
+    return ((affinity >> SIGN_BITS_SHIFT) & (1u << i_collider)) != 0;
+}
+
+fn affinities_are_compatible(affinity1: u32, affinity2: u32) -> bool {
+    let affinities_in_common = affinity1 & affinity2 & AFFINITY_BITS_MASK;
+    let signs1 = (affinity1 >> SIGN_BITS_SHIFT) & affinities_in_common;
+    let signs2 = (affinity2 >> SIGN_BITS_SHIFT) & affinities_in_common;
+    return signs1 == signs2;
+}
+
 struct Node {
     /// The first three components contains either the cell’s momentum or its velocity
     /// (depending on the context). The fourth component contains the cell’s mass.
@@ -337,6 +364,7 @@ fn reset(@builtin(global_invocation_id) invocation_id: vec3<u32>, @builtin(num_w
        #else
        nodes[i].momentum_velocity_mass = vec4(0.0);
        #endif
+       nodes_cdf[i] = NodeCdf(0.0, 0);
        nodes_linked_lists[i].head = NONE;
        nodes_linked_lists[i].len = 0u;
    }

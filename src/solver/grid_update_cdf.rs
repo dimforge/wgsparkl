@@ -1,3 +1,4 @@
+use crate::collision::WgCollide;
 use crate::dim_shader_defs;
 use crate::grid::grid::{GpuGrid, WgGrid};
 use crate::solver::params::GpuSimulationParams;
@@ -8,15 +9,15 @@ use wgrapier::dynamics::GpuBodySet;
 
 #[derive(Shader)]
 #[shader(
-    derive(WgGrid),
-    src = "grid_update.wgsl",
+    derive(WgGrid, WgCollide),
+    src = "grid_update_cdf.wgsl",
     shader_defs = "dim_shader_defs"
 )]
-pub struct WgGridUpdate {
+pub struct WgGridUpdateCdf {
     pub grid_update: ComputePipeline,
 }
 
-impl WgGridUpdate {
+impl WgGridUpdateCdf {
     pub fn queue<'a>(
         &'a self,
         queue: &mut KernelInvocationQueue<'a>,
@@ -30,12 +31,21 @@ impl WgGridUpdate {
                 [
                     (grid.meta.buffer(), 0),
                     (grid.active_blocks.buffer(), 2),
-                    (grid.nodes.buffer(), 3),
-                    (sim_params.params.buffer(), 4),
+                    (grid.nodes_cdf.buffer(), 9),
+                ],
+            )
+            .bind(1, [])
+            .bind(
+                2,
+                [
+                    bodies.shapes().buffer(),
+                    bodies.poses().buffer(),
+                    // bodies.vels().buffer(),
+                    // bodies.mprops().buffer(),
                 ],
             )
             .queue_indirect(grid.indirect_n_g2p_p2g_groups.clone());
     }
 }
 
-wgcore::test_shader_compilation!(WgGridUpdate, wgcore, crate::dim_shader_defs());
+wgcore::test_shader_compilation!(WgGridUpdateCdf, wgcore, crate::dim_shader_defs());

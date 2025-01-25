@@ -14,10 +14,12 @@ var<storage, read> particles_vol: array<Particle::Volume>;
 @group(0) @binding(3)
 var<storage, read> particles_vel: array<Particle::Velocity>;
 @group(0) @binding(4)
-var<storage, read_write> grid: Grid::Grid;
+var<storage, read> particles_cdf: array<Particle::Cdf>;
 @group(0) @binding(5)
-var<uniform> params: Params::SimulationParams;
+var<storage, read_write> grid: Grid::Grid;
 @group(0) @binding(6)
+var<uniform> params: Params::SimulationParams;
+@group(0) @binding(7)
 var<storage, read> config: RenderConfig;
 
 struct RenderConfig {
@@ -27,6 +29,9 @@ struct RenderConfig {
 const DEFAULT: u32 = 0;
 const VOLUME: u32 = 1;
 const VELOCITY: u32 = 2;
+const CDF_NORMALS: u32 = 3;
+const CDF_DISTANCES: u32 = 4;
+const CDF_SIGNS: u32 = 5;
 
 struct InstanceData {
     deformation: mat3x3<f32>,
@@ -60,6 +65,31 @@ fn main(
             let svd = Svd2::svd(def_grad);
             let color_xy = (vec2(1.0) - svd.S) / 0.005 + vec2(0.2);
             instances[particle_id].color = vec4(color_xy, color.z, color.w);
-        }
+        } else if config.mode == CDF_NORMALS {
+            let particle_normal = particles_cdf[particle_id].normal;
+            if all(particle_normal == vec2(0.0)) {
+                instances[particle_id].color = vec4(0.0, 0.0, 0.0, color.w);
+            } else {
+                let n = (particle_normal + vec2(1.0)) / 2.0;
+                instances[particle_id].color = vec4(n.x, n.y, 0.0, color.w);
+            }
+        } else if config.mode == CDF_DISTANCES {
+            let d = particles_cdf[particle_id].signed_distance / (cell_width * 1.5);
+            if d > 0.0 {
+                instances[particle_id].color = vec4(0.0, abs(d), 0.0, color.w);
+            } else {
+                instances[particle_id].color = vec4(abs(d), 0.0, 0.0, color.w);
+            }
+        } else if config.mode == CDF_SIGNS {
+             let d = particles_cdf[particle_id].affinity;
+             let a = (d >> 16) & (d & 0x0000ffff);
+             if d == 0 {
+                 instances[particle_id].color = vec4(0.0, 0.0, 0.0, color.w);
+             } else if a == 0 {
+                 instances[particle_id].color = vec4(0.0, 1.0, 0.0, color.w);
+             } else {
+                 instances[particle_id].color = vec4(1.0, 0.0, 0.0, color.w);
+             }
+         }
     }
 }

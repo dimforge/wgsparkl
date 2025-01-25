@@ -6,9 +6,8 @@ use crate::models::{GpuModels, WgDruckerPrager, WgLinearElasticity, WgNeoHookean
 use crate::solver::params::{GpuSimulationParams, WgParams};
 use crate::solver::GpuParticles;
 use crate::solver::WgParticle;
-use naga_oil::compose::NagaModuleDescriptor;
 use wgcore::kernel::{KernelInvocationBuilder, KernelInvocationQueue};
-use wgcore::{utils, Shader};
+use wgcore::Shader;
 use wgparry::substitute_aliases;
 use wgpu::ComputePipeline;
 use wgrapier::dynamics::GpuBodySet;
@@ -59,6 +58,7 @@ impl WgParticleUpdate {
                     particles.velocities.buffer(),
                     particles.volumes.buffer(),
                     particles.affines.buffer(),
+                    particles.cdf.buffer(),
                     models.linear_elasticity.buffer(),
                     models.drucker_prager_plasticity.buffer(),
                     models.drucker_prager_plastic_state.buffer(),
@@ -71,4 +71,4 @@ impl WgParticleUpdate {
     }
 }
 
-wgcore::test_shader_compilation!(WgParticleUpdate);
+wgcore::test_shader_compilation!(WgParticleUpdate, wgcore, crate::dim_shader_defs());

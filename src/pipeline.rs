@@ -3,8 +3,8 @@ use crate::grid::prefix_sum::{PrefixSumWorkspace, WgPrefixSum};
 use crate::grid::sort::WgSort;
 use crate::models::GpuModels;
 use crate::solver::{
-    GpuParticles, GpuSimulationParams, Particle, SimulationParams, WgG2P, WgGridUpdate, WgP2G,
-    WgParticleUpdate,
+    GpuParticles, GpuSimulationParams, Particle, SimulationParams, WgG2P, WgG2PCdf, WgGridUpdate,
+    WgGridUpdateCdf, WgP2G, WgParticleUpdate,
 };
 use naga_oil::compose::ComposerError;
 use wgcore::hot_reloading::HotReloadState;
@@ -23,9 +23,11 @@ pub struct MpmPipeline {
     #[cfg(target_os = "macos")]
     touch_particle_blocks: TouchParticleBlocks,
     p2g: WgP2G,
+    grid_update_cdf: WgGridUpdateCdf,
     grid_update: WgGridUpdate,
     particles_update: WgParticleUpdate,
     g2p: WgG2P,
+    g2p_cdf: WgG2PCdf,
     integrate_bodies: WgIntegrate,
 }
 
@@ -36,8 +38,10 @@ impl MpmPipeline {
         WgSort::watch_sources(state).unwrap(); // TODO: don’t unwrap
         WgP2G::watch_sources(state).unwrap(); // TODO: don’t unwrap
         WgGridUpdate::watch_sources(state).unwrap(); // TODO: don’t unwrap
+        WgGridUpdateCdf::watch_sources(state).unwrap(); // TODO: don’t unwrap
         WgParticleUpdate::watch_sources(state).unwrap(); // TODO: don’t unwrap
         WgG2P::watch_sources(state).unwrap(); // TODO: don’t unwrap
+        WgG2PCdf::watch_sources(state).unwrap(); // TODO: don’t unwrap
         WgIntegrate::watch_sources(state).unwrap(); // TODO: don’t unwrap
     }
 
@@ -52,8 +56,10 @@ impl MpmPipeline {
         changed = self.sort.reload_if_changed(device, state)? || changed;
         changed = self.p2g.reload_if_changed(device, state)? || changed;
         changed = self.grid_update.reload_if_changed(device, state)? || changed;
+        changed = self.grid_update_cdf.reload_if_changed(device, state)? || changed;
         changed = self.particles_update.reload_if_changed(device, state)? || changed;
         changed = self.g2p.reload_if_changed(device, state)? || changed;
+        changed = self.g2p_cdf.reload_if_changed(device, state)? || changed;
         changed = self.integrate_bodies.reload_if_changed(device, state)? || changed;
 
         Ok(changed)
@@ -104,8 +110,10 @@ impl MpmPipeline {
             sort: WgSort::from_device(device)?,
             p2g: WgP2G::from_device(device)?,
             grid_update: WgGridUpdate::from_device(device)?,
+            grid_update_cdf: WgGridUpdateCdf::from_device(device)?,
             particles_update: WgParticleUpdate::from_device(device)?,
             g2p: WgG2P::from_device(device)?,
+            g2p_cdf: WgG2PCdf::from_device(device)?,
             integrate_bodies: WgIntegrate::from_device(device)?,
             #[cfg(target_os = "macos")]
             touch_particle_blocks: TouchParticleBlocks::from_device(device),
@@ -130,6 +138,16 @@ impl MpmPipeline {
             &self.prefix_sum,
             queue,
         );
+
+        queue.compute_pass("grid_update_cdf", add_timestamps);
+
+        self.grid_update_cdf
+            .queue(queue, &data.sim_params, &data.grid, &data.bodies);
+
+        queue.compute_pass("g2p_cdf", add_timestamps);
+
+        self.g2p_cdf
+            .queue(queue, &data.sim_params, &data.grid, &data.particles);
 
         queue.compute_pass("p2g", add_timestamps);
         self.p2g.queue(queue, &data.grid, &data.particles);
@@ -163,10 +181,11 @@ impl MpmPipeline {
 }
 
 #[cfg(test)]
+#[cfg(feature = "dim3")]
 mod test {
     use crate::grid::grid::GpuGrid;
     use crate::grid::prefix_sum::PrefixSumWorkspace;
-    use crate::models::LinearElasticity;
+    use crate::models::WgLinearElasticity;
     use crate::pipeline::{MpmData, MpmPipeline};
     use crate::solver::{GpuParticles, Particle, ParticleMassProps, SimulationParams};
     use nalgebra::{vector, Vector3};
@@ -191,6 +210,8 @@ mod test {
                         velocity: Vector3::zeros(),
                         volume: ParticleMassProps::new(1.0, cell_width / 4.0),
                         model: LinearElasticity::from_young_modulus(100_000.0, 0.33),
+                        plasticity: None,
+                        phase: None,
                     });
                 }
             }
