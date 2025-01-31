@@ -212,6 +212,7 @@ pub struct GpuActiveBlockHeader {
 pub struct GpuGridNodeCdf {
     pub distance: f32,
     pub affinities: u32,
+    pub closest_id: u32,
 }
 
 pub struct GpuGrid {

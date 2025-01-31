@@ -233,6 +233,8 @@ struct NodeCdf {
     // Two bits per collider.
     // The 16 first bits are for affinity, the 16 last are for signs.
     affinities: u32,
+    // Index to the closest collider.
+    closest_id: u32,
 }
 
 fn affinity_bit(i_collider: u32, affinity: u32) -> bool {
@@ -364,7 +366,7 @@ fn reset(@builtin(global_invocation_id) invocation_id: vec3<u32>, @builtin(num_w
        #else
        nodes[i].momentum_velocity_mass = vec4(0.0);
        #endif
-       nodes_cdf[i] = NodeCdf(0.0, 0);
+       nodes_cdf[i] = NodeCdf(0.0, 0, 0);
        nodes_linked_lists[i].head = NONE;
        nodes_linked_lists[i].len = 0u;
    }
@@ -377,4 +379,20 @@ struct SimulationParameters {
     #else
     gravity: vec3<f32>,
     #endif
+}
+
+fn project_velocity(vel: vec2<f32>, n: vec2<f32>) -> vec2<f32> {
+    // TODO: this should depend on the collider’s material
+    //       properties.
+    let normal_vel = dot(vel, n);
+
+    if normal_vel < 0.0 {
+        let friction = 0.9;
+        let tangent_vel = vel - n * normal_vel;
+        let tangent_vel_len = length(tangent_vel);
+        let tangent_vel_dir = select(vec2(0.0), tangent_vel / tangent_vel_len, tangent_vel_len > 1.0e-8);
+        return tangent_vel_dir * max(0.0, tangent_vel_len + friction * normal_vel);
+    } else {
+        return vel;
+    }
 }

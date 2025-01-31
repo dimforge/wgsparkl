@@ -22,7 +22,7 @@ var<storage, read> collision_shape_poses: array<Transform>;
 
 fn collide(cell_width: f32, point: Vector) -> Grid::NodeCdf {
     const MAX_FLT: f32 = 3.40282347E+38; // Is that constant already defined somewhere in WGSL?
-    var cdf = Grid::NodeCdf(MAX_FLT, 0u);
+    var cdf = Grid::NodeCdf(MAX_FLT, 0u, 0u);
 
 #if DIM == 2
     let dist_cap = vec2(cell_width * 1.5);
@@ -41,6 +41,9 @@ fn collide(cell_width: f32, point: Vector) -> Grid::NodeCdf {
 
         if all(abs(dpt) <= dist_cap) {
             let dist = length(dpt);
+            // TODO: take is_inside into account to select the deepest
+            //       penetration as the closest collider?
+            cdf.closest_id = select(cdf.closest_id, i, dist < cdf.distance);
             cdf.distance = min(cdf.distance, dist);
             cdf.affinities |= select(0x00000001u, 0x00010001u, proj.is_inside) << i;
         }

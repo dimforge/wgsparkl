@@ -154,13 +154,17 @@ impl MpmPipeline {
 
         queue.compute_pass("grid_update", add_timestamps);
 
-        self.grid_update
-            .queue(queue, &data.sim_params, &data.grid, &data.bodies);
+        self.grid_update.queue(queue, &data.sim_params, &data.grid);
 
         queue.compute_pass("g2p", add_timestamps);
 
-        self.g2p
-            .queue(queue, &data.sim_params, &data.grid, &data.particles);
+        self.g2p.queue(
+            queue,
+            &data.sim_params,
+            &data.grid,
+            &data.particles,
+            &data.bodies,
+        );
 
         queue.compute_pass("particles_update", add_timestamps);
 

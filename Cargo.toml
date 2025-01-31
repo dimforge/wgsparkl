@@ -23,6 +23,9 @@ rust.unexpected_cfgs = { level = "warn", check-cfg = [
 ] }
 
 [patch.crates-io]
+parry2d = { path = "../parry/crates/parry2d" }
+parry3d = { path = "../parry/crates/parry3d" }
+encase = { path = "../encase" }
 
 [profile.release]
 opt-level = 'z'

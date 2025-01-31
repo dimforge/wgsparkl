@@ -87,7 +87,7 @@ fn global_shared_memory_transfers(tid: vec3<u32>, active_block_vid: Grid::BlockV
                 // This octant doesn’t exist. Fill shared memory with zeros/NONE.
                 // NOTE: we don’t need to init global_id since it’s only read for the
                 //       current chunk that is guaranteed to exist, not the 2x2 adjacent ones.
-                *shared_node = Grid::NodeCdf(0.0, 0);
+                *shared_node = Grid::NodeCdf(0.0, 0, 0);
             }
         }
     }
@@ -113,7 +113,7 @@ fn global_shared_memory_transfers(tid: vec3<u32>, active_block_vid: Grid::BlockV
                     // This octant doesn’t exist. Fill shared memory with zeros/NONE.
                     // NOTE: we don’t need to init global_id since it’s only read for the
                     //       current chunk that is guaranteed to exist, not the 2x2x2 adjacent ones.
-                    *shared_node = Grid::NodeCdf(0.0, 0);
+                    *shared_node = Grid::NodeCdf(0.0, 0, 0);
                 }
             }
         }
@@ -236,11 +236,12 @@ fn particle_g2p(particle_id: u32, cell_width: f32, dt: f32) {
         let result = Inv::inv3(qtq) * qtu;
         let len = length(result.xy);
         let normal = select(vec2(0.0), result.xy / len, len > 1.0e-6);
-        particles_cdf[particle_id] = Particle::Cdf(normal, result.z, particle_affinity);
+        // PERF: init the rigid-velocities here instead of in g2p?
+        particles_cdf[particle_id] = Particle::Cdf(normal, vec2(0.0), result.z, particle_affinity);
 #else
         let result = Inv::inv4(qtq) * qtu;
         let normal = result.xyz / length(result.xyz);
-        particles_cdf[particle_id] = Particle::Cdf(normal, result.w, particle_affinity);
+        particles_cdf[particle_id] = Particle::Cdf(normal, vec3(0.0), result.w, particle_affinity);
 #endif
     } else {
         // TODO: store the affinity in this case too?

@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use bevy::render::renderer::RenderDevice;
 use nalgebra::{vector, Similarity3, Vector3};
 use wgebra::GpuSim3;
-use wgparry3d::cuboid::GpuCuboid;
+use wgparry3d::parry::shape::Cuboid;
 use wgrapier3d::dynamics::BodyDesc;
 use wgsparkl::models::DruckerPrager;
 use wgsparkl::{
@@ -74,7 +74,7 @@ fn sand_demo(mut commands: Commands, device: Res<RenderDevice>, mut app_state: R
     };
 
     let bodies = vec![BodyDesc {
-        shape: GpuCuboid::new(vector![10000.0, 4.0, 10000.0]),
+        shape: Cuboid::new(vector![10000.0, 4.0, 10000.0]),
         pose: GpuSim3::from(Similarity3::new(
             vector![0.0, -4.0, 0.0],
             Vector3::zeros(),

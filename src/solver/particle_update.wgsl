@@ -75,17 +75,17 @@ fn main(
      * Advection.
      */
     if cdf.signed_distance < -0.05 * cell_width {
-        new_particle_vel = project_velocity(new_particle_vel, cdf.normal);
+        new_particle_vel = cdf.rigid_vel + Grid::project_velocity((new_particle_vel - cdf.rigid_vel), cdf.normal);
     }
     let new_particle_pos = particle_pos + new_particle_vel * dt;
 
     /*
      * Penalty impulse.
      */
-     const PENALTY_COEFF: f32 = 1.0e3;
+     const PENALTY_COEFF: f32 = 1.0e4;
      if cdf.signed_distance < -0.05 * cell_width && cdf.signed_distance > -0.3 * cell_width {
          let impulse = (dt * -cdf.signed_distance * PENALTY_COEFF) * cdf.normal;
-         new_particle_vel += impulse / curr_particle_vol.mass;
+         // new_particle_vel += impulse / curr_particle_vol.mass;
      }
 
     /*
@@ -144,16 +144,4 @@ fn main(
     particles_vel[particle_id].v = new_particle_vel;
     particles_vol[particle_id] = Particle::set_deformation_gradient(curr_particle_vol, new_deformation_gradient);
     particles_affine[particle_id] = affine;
-}
-
-fn project_velocity(vel: vec2<f32>, n: vec2<f32>) -> vec2<f32> {
-    // TODO: this should depend on the collider’s material
-    //       properties.
-    let normal_vel = dot(vel, n);
-
-    if normal_vel < 0.0 {
-        return vel - n * normal_vel;
-    } else {
-        return vel;
-    }
 }

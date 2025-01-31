@@ -17,12 +17,15 @@ struct Volume {
 struct Cdf {
     // Should we pack this?
     normal: vec2<f32>,
+    rigid_vel: vec2<f32>,
     signed_distance: f32,
     affinity: u32,
+//    // Index to the closest collider.
+//    closest_id: u32,
 }
 
 fn default_cdf() -> Cdf {
-    return Cdf(vec2(0.0), 0.0, 0);
+    return Cdf(vec2(0.0), vec2(0.0), 0.0, 0);
 }
 
 fn deformation_gradient(volume: Volume) -> mat2x2<f32> {

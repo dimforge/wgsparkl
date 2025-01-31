@@ -41,7 +41,6 @@ pub fn step_simulation(
     let mut queue = KernelInvocationQueue::new(device);
     let mut encoder = device.create_command_encoder(&Default::default());
 
-    // TODO: we could do the queue_step just once?
     app_state
         .pipeline
         .queue_step(&mut physics.data, &mut queue, timings.timestamps.is_some());
@@ -83,8 +82,11 @@ pub fn step_simulation(
     let buf =
         futures::executor::block_on(physics.data.grid.nodes_cdf_staging.read(device)).unwrap();
     println!(
-        "{:?}, any nonzero: {}",
-        &buf[..100],
+        "{:.x?}, any nonzero: {}",
+        &buf.iter()
+            .filter(|e| e.affinities != 0)
+            .take(10)
+            .collect::<Vec<_>>(),
         buf.iter().any(|e| e.affinities != 0)
     );
 
@@ -94,7 +96,7 @@ pub fn step_simulation(
         "{:x?}, any nonzero: {}",
         &buf.iter()
             .filter(|e| e.affinity != 0)
-            .take(100)
+            .take(10)
             .collect::<Vec<_>>(),
         buf.iter().any(|e| e.affinity != 0)
     );

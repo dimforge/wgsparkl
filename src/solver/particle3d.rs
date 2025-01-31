@@ -1,6 +1,7 @@
 use crate::dim_shader_defs;
 use crate::models::{DruckerPrager, ElasticCoefficients};
 use crate::solver::ParticlePhase;
+use encase::ShaderType;
 use nalgebra::{Matrix4, Matrix4x3, Vector3, Vector4};
 use wgcore::tensor::GpuVector;
 use wgcore::Shader;
@@ -36,9 +37,10 @@ impl ParticleMassProps {
 #[derive(Copy, Clone, PartialEq, Debug, Default, ShaderType)]
 #[repr(C)]
 pub struct Cdf {
-    normal: Vector3<f32>,
-    signed_distance: f32,
-    affinity: u32,
+    pub normal: Vector3<f32>,
+    pub rigid_vel: Vector3<f32>,
+    pub signed_distance: f32,
+    pub affinity: u32,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -54,6 +56,8 @@ pub struct Particle {
 pub struct GpuParticles {
     pub positions: GpuVector<Vector4<f32>>,
     pub velocities: GpuVector<Vector4<f32>>,
+    pub cdf: GpuVector<Cdf>,
+    pub cdf_read: GpuVector<Cdf>,
     pub volumes: GpuVector<ParticleMassProps>,
     pub affines: GpuVector<Matrix4<f32>>,
     pub sorted_ids: GpuVector<u32>,

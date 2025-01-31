@@ -22,7 +22,6 @@ impl WgGridUpdate {
         queue: &mut KernelInvocationQueue<'a>,
         sim_params: &GpuSimulationParams,
         grid: &GpuGrid,
-        bodies: &GpuBodySet,
     ) {
         KernelInvocationBuilder::new(queue, &self.grid_update)
             .bind_at(

@@ -6,6 +6,7 @@
 #import wgsparkl::grid::grid as Grid;
 #import wgsparkl::models::linear_elasticity as ConstitutiveModel;
 #import wgsparkl::models::drucker_prager as DruckerPrager;
+#import wgrapier::body as Body;
 
 @group(1) @binding(0)
 var<storage, read> particles_pos: array<Particle::Position>;
@@ -19,11 +20,16 @@ var<storage, read_write> particles_affine: array<mat2x2<f32>>;
 var<storage, read_write> particles_affine: array<mat3x3<f32>>;
 #endif
 @group(1) @binding(3)
-var<storage, read> particles_cdf: array<Particle::Cdf>;
+var<storage, read_write> particles_cdf: array<Particle::Cdf>;
 @group(1) @binding(4)
 var<storage, read> sorted_particle_ids: array<u32>;
 @group(1) @binding(5)
 var<uniform> params: Params::SimulationParams;
+
+@group(2) @binding(0)
+var<storage, read> body_vels: array<Body::Velocity>;
+@group(2) @binding(1)
+var<storage, read> body_mprops: array<Body::MassProperties>;
 
 #if DIM == 2
 const WORKGROUP_SIZE_X: u32 = 8;
@@ -38,7 +44,7 @@ const NUM_SHARED_CELLS: u32 = 6 * 6 * 6; // block-size plus 2 from adjacent bloc
 #endif
 
 var<workgroup> shared_nodes: array<Grid::Node, NUM_SHARED_CELLS>;
-var<workgroup> shared_nodes_affinities: array<u32, NUM_SHARED_CELLS>;
+var<workgroup> shared_nodes_cdf: array<Grid::NodeCdf, NUM_SHARED_CELLS>; // PERF: we don’t need the distance field from the cdf
 
 const WORKGROUP_SIZE: u32 = WORKGROUP_SIZE_X * WORKGROUP_SIZE_Y * WORKGROUP_SIZE_Z;
 @compute @workgroup_size(WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y, WORKGROUP_SIZE_Z)
@@ -87,13 +93,13 @@ fn global_shared_memory_transfers(tid: vec3<u32>, active_block_vid: Grid::BlockV
                 let global_chunk_id = Grid::block_header_id_to_physical_id(octant_hid);
                 let global_node_id = Grid::node_id(global_chunk_id, tid.xy);
                 shared_nodes[flat_shared_index] = Grid::nodes[global_node_id.id];
-                shared_nodes_affinities[flat_shared_index] = Grid::nodes_cdf[global_node_id.id].affinities;
+                shared_nodes_cdf[flat_shared_index] = Grid::nodes_cdf[global_node_id.id];
             } else {
                 // This octant doesn’t exist. Fill shared memory with zeros/NONE.
                 // NOTE: we don’t need to init global_id since it’s only read for the
                 //       current chunk that is guaranteed to exist, not the 2x2 adjacent ones.
                 shared_nodes[flat_shared_index] = Grid::Node(vec3(0.0));
-                shared_nodes_affinities[flat_shared_index] = 0u;
+                shared_nodes_cdf[flat_shared_index] = Grid::NodeCdf(0.0, 0, 0);
             }
         }
     }
@@ -115,13 +121,13 @@ fn global_shared_memory_transfers(tid: vec3<u32>, active_block_vid: Grid::BlockV
                     let global_chunk_id = Grid::block_header_id_to_physical_id(octant_hid);
                     let global_node_id = Grid::node_id(global_chunk_id, tid);
                     shared_nodes[flat_shared_index] = Grid::nodes[global_node_id.id];
-                    shared_nodes_affinities[flat_shared_index] = Grid::nodes_cdf[global_node_id.id].affinities;
+                    shared_nodes_cdf[flat_shared_index] = Grid::nodes_cdf[global_node_id.id];
                 } else {
                     // This octant doesn’t exist. Fill shared memory with zeros/NONE.
                     // NOTE: we don’t need to init global_id since it’s only read for the
                     //       current chunk that is guaranteed to exist, not the 2x2x2 adjacent ones.
                     shared_nodes[flat_shared_index] = Grid::Node(vec4(0.0));
-                    shared_nodes_affinities[flat_shared_index] = 0u;
+                    shared_noeds_cdf[flat_shared_index] = Grid::NodeCdf(0.0, 0, 0);
                 }
             }
         }
@@ -136,9 +142,11 @@ fn particle_g2p(particle_id: u32, cell_width: f32, dt: f32) {
     var NBH_SHIFTS_SHARED = Kernel::NBH_SHIFTS_SHARED;
 
 #if DIM == 2
+    var rigid_vel = vec2<f32>(0.0);
     var momentum_velocity_mass = vec3<f32>(0.0);
     var velocity_gradient = mat2x2<f32>(vec2(0.0), vec2(0.0));
 #else
+    var rigid_vel = vec3<f32>(0.0);
     var momentum_velocity_mass = vec4<f32>(0.0);
     var velocity_gradient = mat3x3<f32>(vec3(0.0), vec3(0.0), vec3(0.0));
 #endif
@@ -148,7 +156,6 @@ fn particle_g2p(particle_id: u32, cell_width: f32, dt: f32) {
         let particle_cdf = particles_cdf[particle_id];
         let particle_pos = particles_pos[particle_id];
         let particle_vel = particles_vel[particle_id].v;
-        let particle_ghost_vel = project_velocity(particle_vel, particle_cdf.normal);
 
         let inv_d = Kernel::inv_d(cell_width);
         let ref_elt_pos_minus_particle_pos = Particle::dir_to_associated_grid_node(particle_pos, cell_width);
@@ -169,25 +176,44 @@ fn particle_g2p(particle_id: u32, cell_width: f32, dt: f32) {
             let packed_shift = NBH_SHIFTS_SHARED[i];
             let shared_id = packed_cell_index_in_block + packed_shift;
             let cell_data = shared_nodes[shared_id].momentum_velocity_mass;
-            let cell_affinities = shared_nodes_affinities[shared_id];
-            let is_compatible = Grid::affinities_are_compatible(particle_cdf.affinity, cell_affinities);
+            let cell_cdf = shared_nodes_cdf[shared_id];
+            let is_compatible = Grid::affinities_are_compatible(particle_cdf.affinity, cell_cdf.affinities);
+
+#if DIM == 2
+            let dpt = ref_elt_pos_minus_particle_pos + vec2<f32>(shift) * cell_width;
+#else
+            let dpt = ref_elt_pos_minus_particle_pos + vec3<f32>(shift) * cell_width;
+#endif
+
+            let body_vel = body_vels[cell_cdf.closest_id]; // TODO: invalid if there is no body.
+            let body_com = body_mprops[cell_cdf.closest_id].com;
+            let cell_center = dpt + particle_pos.pt;
+            let body_pt_vel =  Body::velocity_at_point(body_com, body_vel, cell_center);
+            let particle_ghost_vel = body_pt_vel + Grid::project_velocity(particle_vel - body_pt_vel, particle_cdf.normal);
 
 #if DIM == 2
             let cpic_cell_data = select(vec3(particle_ghost_vel, cell_data.z), cell_data, is_compatible);
-            let dpt = ref_elt_pos_minus_particle_pos + vec2<f32>(shift) * cell_width;
             let weight = w.x[shift.x] * w.y[shift.y];
             momentum_velocity_mass += cpic_cell_data * weight;
             velocity_gradient += (weight * inv_d) * outer_product(cpic_cell_data.xy, dpt);
 #else
             let cpic_cell_data = select(vec4(particle_ghost_vel, cell_data.w), cell_data, is_compatible);
-            let dpt = ref_elt_pos_minus_particle_pos + vec3<f32>(shift) * cell_width;
             let weight = w.x[shift.x] * w.y[shift.y] * w.z[shift.z];
             momentum_velocity_mass += cpic_cell_data * weight;
             velocity_gradient += (weight * inv_d) * outer_product(cpic_cell_data.xyz, dpt);
 #endif
         }
+
+        for (var i = 0u; i < 16u; i++) {
+            if Grid::affinity_bit(i, particle_cdf.affinity) {
+                let body_vel = body_vels[i];
+                let body_com = body_mprops[i].com;
+                rigid_vel += Body::velocity_at_point(body_com, body_vel, particle_pos.pt);
+            }
+        }
     }
 
+    particles_cdf[particle_id].rigid_vel = rigid_vel;
     // Set the particle velocity, and store the velocity gradient into the affine matrix.
     // The rest will be dealt with in the particle update kernel(s).
     particles_affine[particle_id] = velocity_gradient;
@@ -228,15 +254,3 @@ fn flatten_shared_index(x: u32, y: u32, z: u32) -> u32 {
     return x + y * 6 + z * 6 * 6;
 }
 #endif
-
-fn project_velocity(vel: vec2<f32>, n: vec2<f32>) -> vec2<f32> {
-    // TODO: this should depend on the collider’s material
-    //       properties.
-    let normal_vel = dot(vel, n);
-
-    if normal_vel < 0.0 {
-        return vel - n * normal_vel;
-    } else {
-        return vel;
-    }
-}

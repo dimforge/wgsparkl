@@ -35,6 +35,7 @@ impl ParticleMassProps {
 #[repr(C)]
 pub struct Cdf {
     pub normal: Vector2<f32>,
+    pub rigid_vel: Vector2<f32>,
     pub signed_distance: f32,
     pub affinity: u32,
 }

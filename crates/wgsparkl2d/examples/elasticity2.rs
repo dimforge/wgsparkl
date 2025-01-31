@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use bevy::render::renderer::RenderDevice;
 use nalgebra::{vector, Similarity2, Vector2};
 use wgebra::GpuSim2;
-use wgparry2d::cuboid::GpuCuboid;
+use wgparry2d::parry::shape::Cuboid;
 use wgrapier2d::dynamics::{BodyDesc, GpuVelocity};
 use wgsparkl::models::DruckerPrager;
 use wgsparkl::solver::ParticlePhase;
@@ -77,34 +77,34 @@ fn sand_demo(mut commands: Commands, device: Res<RenderDevice>, mut app_state: R
         padding: 0.0,
     };
 
-    const ANGVEL: f32 = 0.0; // 2.0;
+    const ANGVEL: f32 = 2.0;
     let colliders = vec![
+        // BodyDesc {
+        //     shape: Cuboid::new(vector![5.0, 5.0]),
+        //     pose: GpuSim2::from(Similarity2::new(vector![35.0, 100.0], 0.0, 1.0)),
+        //     vel: GpuVelocity {
+        //         linear: Vector2::zeros(),
+        //         angular: ANGVEL,
+        //     },
+        //     ..BodyDesc::default()
+        // },
         BodyDesc {
-            shape: GpuCuboid::new(vector![5.0, 5.0]),
-            pose: GpuSim2::from(Similarity2::new(vector![35.0, 100.0], 0.0, 1.0)),
-            vel: GpuVelocity {
-                linear: Vector2::zeros(),
-                angular: ANGVEL,
-            },
-            ..BodyDesc::default()
-        },
-        BodyDesc {
-            shape: GpuCuboid::new(vector![1000.0, 1.0]),
+            shape: Cuboid::new(vector![1000.0, 1.0]),
             pose: GpuSim2::from(Similarity2::new(vector![0.0, -1.0], 0.0, 1.0)),
             ..Default::default()
         },
         BodyDesc {
-            shape: GpuCuboid::new(vector![1.0, 60.0]),
+            shape: Cuboid::new(vector![1.0, 60.0]),
             pose: GpuSim2::from(Similarity2::new(vector![-20.0, 0.0], 0.5, 1.0)),
             ..BodyDesc::default()
         },
         BodyDesc {
-            shape: GpuCuboid::new(vector![1.0, 60.0]),
+            shape: Cuboid::new(vector![1.0, 60.0]),
             pose: GpuSim2::from(Similarity2::new(vector![90.0, 0.0], -0.5, 1.0)),
             ..BodyDesc::default()
         },
         BodyDesc {
-            shape: GpuCuboid::new(vector![5.0, 5.0]),
+            shape: Cuboid::new(vector![1.0, 5.0]),
             pose: GpuSim2::from(Similarity2::new(vector![5.0, 30.0], 0.0, 1.0)),
             vel: GpuVelocity {
                 linear: Vector2::zeros(),
@@ -113,7 +113,7 @@ fn sand_demo(mut commands: Commands, device: Res<RenderDevice>, mut app_state: R
             ..BodyDesc::default()
         },
         BodyDesc {
-            shape: GpuCuboid::new(vector![5.0, 5.0]),
+            shape: Cuboid::new(vector![5.0, 1.0]),
             pose: GpuSim2::from(Similarity2::new(vector![35.0, 30.0], 0.0, 1.0)),
             vel: GpuVelocity {
                 linear: Vector2::zeros(),
@@ -122,7 +122,7 @@ fn sand_demo(mut commands: Commands, device: Res<RenderDevice>, mut app_state: R
             ..BodyDesc::default()
         },
         BodyDesc {
-            shape: GpuCuboid::new(vector![5.0, 5.0]),
+            shape: Cuboid::new(vector![1.0, 5.0]),
             pose: GpuSim2::from(Similarity2::new(vector![65.0, 30.0], 0.0, 1.0)),
             vel: GpuVelocity {
                 linear: Vector2::zeros(),
@@ -131,7 +131,7 @@ fn sand_demo(mut commands: Commands, device: Res<RenderDevice>, mut app_state: R
             ..BodyDesc::default()
         },
         BodyDesc {
-            shape: GpuCuboid::new(vector![5.0, 5.0]),
+            shape: Cuboid::new(vector![5.0, 1.0]),
             pose: GpuSim2::from(Similarity2::new(vector![20.0, 20.0], 0.0, 1.0)),
             vel: GpuVelocity {
                 linear: Vector2::zeros(),
@@ -140,7 +140,7 @@ fn sand_demo(mut commands: Commands, device: Res<RenderDevice>, mut app_state: R
             ..BodyDesc::default()
         },
         BodyDesc {
-            shape: GpuCuboid::new(vector![5.0, 5.0]),
+            shape: Cuboid::new(vector![1.0, 5.0]),
             pose: GpuSim2::from(Similarity2::new(vector![50.0, 20.0], 0.0, 1.0)),
             vel: GpuVelocity {
                 linear: Vector2::zeros(),
@@ -149,7 +149,7 @@ fn sand_demo(mut commands: Commands, device: Res<RenderDevice>, mut app_state: R
             ..BodyDesc::default()
         },
         BodyDesc {
-            shape: GpuCuboid::new(vector![5.0, 5.0]),
+            shape: Cuboid::new(vector![5.0, 5.0]),
             pose: GpuSim2::from(Similarity2::new(
                 vector![35.0, 10.0],
                 std::f32::consts::PI / 4.0,
@@ -213,17 +213,17 @@ fn elastic_demo(
 
     let colliders = vec![
         BodyDesc {
-            shape: GpuCuboid::new(vector![1000.0, 1.0]),
+            shape: Cuboid::new(vector![1000.0, 1.0]),
             pose: GpuSim2::from(Similarity2::new(vector![0.0, -1.0], 0.0, 1.0)),
             ..Default::default()
         },
         BodyDesc {
-            shape: GpuCuboid::new(vector![1.0, 60.0]),
+            shape: Cuboid::new(vector![1.0, 60.0]),
             pose: GpuSim2::from(Similarity2::new(vector![-20.0, 0.0], 0.5, 1.0)),
             ..BodyDesc::default()
         },
         BodyDesc {
-            shape: GpuCuboid::new(vector![1.0, 60.0]),
+            shape: Cuboid::new(vector![1.0, 60.0]),
             pose: GpuSim2::from(Similarity2::new(vector![90.0, 0.0], -0.5, 1.0)),
             ..BodyDesc::default()
         },
