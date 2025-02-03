@@ -3,10 +3,12 @@ use crate::grid::prefix_sum::{PrefixSumWorkspace, WgPrefixSum};
 use crate::grid::sort::WgSort;
 use crate::models::GpuModels;
 use crate::solver::{
-    GpuParticles, GpuSimulationParams, Particle, SimulationParams, WgG2P, WgG2PCdf, WgGridUpdate,
-    WgGridUpdateCdf, WgP2G, WgParticleUpdate,
+    GpuImpulses, GpuParticles, GpuSimulationParams, Particle, SimulationParams, WgG2P, WgG2PCdf,
+    WgGridUpdate, WgGridUpdateCdf, WgP2G, WgParticleUpdate, WgRigidImpulses,
 };
 use naga_oil::compose::ComposerError;
+use rapier::dynamics::RigidBodySet;
+use rapier::geometry::ColliderSet;
 use wgcore::hot_reloading::HotReloadState;
 use wgcore::kernel::KernelInvocationQueue;
 use wgcore::Shader;
@@ -29,6 +31,7 @@ pub struct MpmPipeline {
     g2p: WgG2P,
     g2p_cdf: WgG2PCdf,
     integrate_bodies: WgIntegrate,
+    pub impulses: WgRigidImpulses,
 }
 
 impl MpmPipeline {
@@ -43,6 +46,7 @@ impl MpmPipeline {
         WgG2P::watch_sources(state).unwrap(); // TODO: don’t unwrap
         WgG2PCdf::watch_sources(state).unwrap(); // TODO: don’t unwrap
         WgIntegrate::watch_sources(state).unwrap(); // TODO: don’t unwrap
+        WgRigidImpulses::watch_sources(state).unwrap(); // TODO: don’t unwrap
     }
 
     pub fn reload_if_changed(
@@ -61,9 +65,15 @@ impl MpmPipeline {
         changed = self.g2p.reload_if_changed(device, state)? || changed;
         changed = self.g2p_cdf.reload_if_changed(device, state)? || changed;
         changed = self.integrate_bodies.reload_if_changed(device, state)? || changed;
+        changed = self.impulses.reload_if_changed(device, state)? || changed;
 
         Ok(changed)
     }
+}
+
+pub struct PhysicsData<'a> {
+    bodies: &'a RigidBodySet,
+    colliders: &'a ColliderSet,
 }
 
 pub struct MpmData {
@@ -71,6 +81,7 @@ pub struct MpmData {
     pub grid: GpuGrid,
     pub particles: GpuParticles, // TODO: keep private?
     pub bodies: GpuBodySet,
+    pub impulses: GpuImpulses,
     prefix_sum: PrefixSumWorkspace,
     models: GpuModels,
 }
@@ -80,7 +91,8 @@ impl MpmData {
         device: &Device,
         params: SimulationParams,
         particles: &[Particle],
-        bodies: &[BodyDesc],
+        bodies: &RigidBodySet,
+        colliders: &ColliderSet,
         cell_width: f32,
         grid_capacity: u32,
     ) -> Self {
@@ -89,12 +101,14 @@ impl MpmData {
         let particles = GpuParticles::from_particles(device, particles);
         let grid = GpuGrid::with_capacity(device, grid_capacity, cell_width);
         let prefix_sum = PrefixSumWorkspace::with_capacity(device, grid_capacity);
-        let bodies = GpuBodySet::new(device, bodies);
+        let bodies = GpuBodySet::from_rapier(device, bodies, colliders);
+        let impulses = GpuImpulses::new(device);
 
         Self {
             sim_params,
             particles,
             bodies,
+            impulses,
             grid,
             prefix_sum,
             models,
@@ -117,6 +131,7 @@ impl MpmPipeline {
             integrate_bodies: WgIntegrate::from_device(device)?,
             #[cfg(target_os = "macos")]
             touch_particle_blocks: TouchParticleBlocks::from_device(device),
+            impulses: WgRigidImpulses::from_device(device)?,
         })
     }
 
@@ -127,7 +142,6 @@ impl MpmPipeline {
         add_timestamps: bool,
     ) {
         queue.compute_pass("grid sort", add_timestamps);
-
         self.grid.queue_sort(
             &data.particles,
             &data.grid,
@@ -150,7 +164,13 @@ impl MpmPipeline {
             .queue(queue, &data.sim_params, &data.grid, &data.particles);
 
         queue.compute_pass("p2g", add_timestamps);
-        self.p2g.queue(queue, &data.grid, &data.particles);
+        self.p2g.queue(
+            queue,
+            &data.grid,
+            &data.particles,
+            &data.impulses,
+            &data.bodies,
+        );
 
         queue.compute_pass("grid_update", add_timestamps);
 
@@ -180,6 +200,8 @@ impl MpmPipeline {
         queue.compute_pass("integrate_bodies", add_timestamps);
 
         // TODO: should this be in a separate pipeline? Within wgrapier probably?
+        self.impulses
+            .queue_update(queue, &data.impulses, &data.bodies);
         self.integrate_bodies.queue(queue, &data.bodies);
     }
 }

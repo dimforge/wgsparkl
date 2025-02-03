@@ -1,7 +1,8 @@
 use crate::instancing::{InstanceBuffer, InstanceData, InstanceMaterialData};
 use crate::prep_vertex_buffer::{GpuRenderConfig, RenderConfig, RenderMode, WgPrepVertexBuffer};
+use crate::rigid_graphics::{BevyMaterial, EntityWithGraphics, InstancedMaterials};
 use crate::step::TimestampChannel;
-use crate::{AppState, PhysicsContext, RunState, Timestamps};
+use crate::{AppState, PhysicsContext, RenderContext, RunState, Timestamps};
 use bevy::asset::Assets;
 use bevy::color::Color;
 use bevy::hierarchy::DespawnRecursiveExt;
@@ -12,11 +13,14 @@ use bevy::render::render_resource::BufferUsages;
 use bevy::render::renderer::RenderDevice;
 use bevy::render::view::NoFrustumCulling;
 use bevy_editor_cam::prelude::{EditorCam, EnabledMotion};
+use nalgebra::point;
+use std::collections::HashMap;
 use std::sync::Arc;
 use wgcore::hot_reloading::HotReloadState;
 use wgcore::tensor::GpuVector;
 use wgcore::timestamps::GpuTimestamps;
 use wgcore::Shader;
+use wgparry2d::parry::math::Isometry;
 use wgpu::Features;
 use wgsparkl::pipeline::MpmPipeline;
 
@@ -43,6 +47,7 @@ pub fn setup_app(mut commands: Commands, device: Res<RenderDevice>) {
         selected_scene: 0,
         hot_reload,
     });
+    commands.init_resource::<RenderContext>();
 
     let (snd, rcv) = async_channel::unbounded();
     commands.insert_resource(TimestampChannel { snd, rcv });
@@ -97,12 +102,39 @@ pub fn setup_app(mut commands: Commands, device: Res<RenderDevice>) {
     }
 }
 
-pub fn setup_graphics(
-    mut commands: Commands,
-    device: Res<RenderDevice>,
-    physics: Res<PhysicsContext>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    to_clear: Query<Entity, With<InstanceMaterialData>>,
+fn setup_rapier_graphics(
+    commands: &mut Commands,
+    device: &RenderDevice,
+    physics: &PhysicsContext,
+    rigid_render: &mut RenderContext,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<BevyMaterial>,
+    to_clear: &Query<Entity, With<InstanceMaterialData>>,
+) {
+    for (handle, collider) in physics.rapier_data.colliders.iter() {
+        let e = EntityWithGraphics::spawn(
+            commands,
+            meshes,
+            materials,
+            &mut rigid_render.prefab_meshes,
+            &mut rigid_render.instanced_materials,
+            collider.shape(),
+            Some(handle),
+            *collider.position(),
+            Isometry::identity(), // TODO
+            point![1.0, 0.0, 0.0],
+            false,
+        );
+        rigid_render.rigid_entities.push(e);
+    }
+}
+
+fn setup_particles_graphics(
+    commands: &mut Commands,
+    device: &RenderDevice,
+    physics: &PhysicsContext,
+    meshes: &mut Assets<Mesh>,
+    to_clear: &Query<Entity, With<InstanceMaterialData>>,
 ) {
     if let Ok(to_clear) = to_clear.get_single() {
         commands.entity(to_clear).despawn_recursive();
@@ -160,4 +192,25 @@ pub fn setup_graphics(
         },
         NoFrustumCulling,
     ));
+}
+
+pub fn setup_graphics(
+    mut commands: Commands,
+    device: Res<RenderDevice>,
+    physics: Res<PhysicsContext>,
+    mut rigid_render: ResMut<RenderContext>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<BevyMaterial>>,
+    to_clear: Query<Entity, With<InstanceMaterialData>>,
+) {
+    setup_particles_graphics(&mut commands, &device, &physics, &mut meshes, &to_clear);
+    setup_rapier_graphics(
+        &mut commands,
+        &device,
+        &physics,
+        &mut rigid_render,
+        &mut meshes,
+        &mut materials,
+        &to_clear,
+    );
 }

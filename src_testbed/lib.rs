@@ -7,6 +7,7 @@ pub extern crate wgsparkl3d as wgsparkl;
 pub use instancing2d as instancing;
 #[cfg(feature = "dim3")]
 pub use instancing3d as instancing;
+use std::collections::HashMap;
 
 #[cfg(feature = "dim2")]
 pub mod instancing2d;
@@ -15,6 +16,7 @@ pub mod instancing3d;
 
 mod hot_reload;
 pub mod prep_vertex_buffer;
+mod rigid_graphics;
 pub mod startup;
 pub mod step;
 pub mod ui;
@@ -24,10 +26,19 @@ use bevy::ecs::system::SystemId;
 use bevy::prelude::*;
 use bevy_editor_cam::prelude::DefaultEditorCamPlugins;
 // use bevy_wasm_window_resize::WindowResizePlugin;
+use crate::rigid_graphics::{EntityWithGraphics, InstancedMaterials};
 use instancing::INSTANCING_SHADER_HANDLE;
 use prep_vertex_buffer::{GpuRenderConfig, RenderConfig, WgPrepVertexBuffer};
 use wgcore::hot_reloading::HotReloadState;
 use wgcore::timestamps::GpuTimestamps;
+use wgsparkl::rapier::dynamics::{
+    CCDSolver, ImpulseJoint, IntegrationParameters, MultibodyJoint, RigidBodySet,
+};
+use wgsparkl::rapier::geometry::{BroadPhase, ColliderSet, NarrowPhase};
+use wgsparkl::rapier::prelude::{
+    DefaultBroadPhase, ImpulseJointSet, IslandManager, MultibodyJointSet, PhysicsPipeline,
+    ShapeType,
+};
 use wgsparkl::{
     pipeline::{MpmData, MpmPipeline},
     solver::Particle,
@@ -49,8 +60,10 @@ pub fn init_testbed(app: &mut App) {
             (
                 ui::update_ui,
                 step::step_simulation,
+                rigid_graphics::update_rigid_graphics,
                 hot_reload::handle_hot_reloading,
-            ),
+            )
+                .chain(),
         );
 
     #[cfg(feature = "dim2")]
@@ -83,10 +96,32 @@ pub struct AppState {
     pub hot_reload: HotReloadState,
 }
 
+#[derive(Default)]
+pub struct RapierData {
+    pub bodies: RigidBodySet,
+    pub colliders: ColliderSet,
+    pub impulse_joints: ImpulseJointSet,
+    pub multibody_joints: MultibodyJointSet,
+    pub params: IntegrationParameters,
+    pub physics_pipeline: PhysicsPipeline,
+    pub narrow_phase: NarrowPhase,
+    pub broad_phase: DefaultBroadPhase,
+    pub ccd_solver: CCDSolver,
+    pub islands: IslandManager,
+}
+
 #[derive(Resource)]
 pub struct PhysicsContext {
     pub data: MpmData,
+    pub rapier_data: RapierData,
     pub particles: Vec<Particle>,
+}
+
+#[derive(Resource, Default)]
+pub struct RenderContext {
+    pub instanced_materials: InstancedMaterials,
+    pub prefab_meshes: HashMap<ShapeType, Handle<Mesh>>,
+    pub rigid_entities: Vec<EntityWithGraphics>,
 }
 
 #[derive(Resource, Default)]

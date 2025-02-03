@@ -28,6 +28,9 @@ wgebra = { version = "0.2", path = "../../../wgmath/crates/wgebra" }
 wgparry3d = { version = "0.2", path = "../../../wgmath/crates/wgparry/crates/wgparry3d" }
 wgrapier3d = { version = "0.2", path = "../../../wgmath/crates/wgrapier/crates/wgrapier3d" }
 
+# TODO: make rapier optional?
+rapier3d = "0.23"
+
 [dev-dependencies]
 nalgebra = { version = "0.33", features = ["rand"] }
 futures-test = "0.3"
