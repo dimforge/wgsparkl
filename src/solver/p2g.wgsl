@@ -71,6 +71,7 @@ struct P2GStepResult {
 #if DIM == 2
     new_momentum_velocity_mass: vec3<f32>,
     impulse: vec2<f32>,
+    ang_impulse: f32,
 #else
     new_momentum_velocity_mass: vec4<f32>,
     impulse: vec3<f32>,
@@ -127,6 +128,7 @@ fn p2g(
         let partial_result = p2g_step(packed_cell_index_in_block, Grid::grid.cell_width, node_affinities, closest_body);
         total_result.new_momentum_velocity_mass += partial_result.new_momentum_velocity_mass;
         total_result.impulse += partial_result.impulse;
+        total_result.ang_impulse += partial_result.ang_impulse;
     }
 
     // Grid update.
@@ -150,7 +152,7 @@ fn p2g(
     //       here targets the same body.
     atomicAdd(&body_impulses[closest_body].linear_x, Impulse::flt2int(total_result.impulse.x));
     atomicAdd(&body_impulses[closest_body].linear_y, Impulse::flt2int(total_result.impulse.y));
-//    atomicAdd(&body_impulses[closest_body].angular, total_result.impulse.angular));
+    atomicAdd(&body_impulses[closest_body].angular, Impulse::flt2int(total_result.ang_impulse));
 }
 
 fn p2g_step(packed_cell_index_in_block: u32, cell_width: f32, node_affinity: u32, closest_body: u32) -> P2GStepResult {
@@ -168,6 +170,7 @@ fn p2g_step(packed_cell_index_in_block: u32, cell_width: f32, node_affinity: u32
     var new_momentum_velocity_mass = vec4(0.0);
 #endif
     var impulse = Vector(0.0);
+    var ang_impulse = 0.0;
 
     for (var i = 0u; i < Kernel::NBH_LEN; i += 1u) {
         let packed_shift = NBH_SHIFTS_SHARED[i];
@@ -203,7 +206,13 @@ fn p2g_step(packed_cell_index_in_block: u32, cell_width: f32, node_affinity: u32
             let cell_center = dpt + particle_pos.pt;
             let body_pt_vel =  Body::velocity_at_point(body_com, body_vel, cell_center);
             let particle_ghost_vel = body_pt_vel + Grid::project_velocity(particle_vel - body_pt_vel, particle_normal);
-            impulse += (particle_vel - particle_ghost_vel) * (weight * particle_mass);
+            let delta_impulse = (particle_vel - particle_ghost_vel) * (weight * particle_mass);
+            let lever_arm = body_com - cell_center;
+            let delta_ang_impulse = dot(delta_impulse, vec2(lever_arm.y, -lever_arm.x));
+
+            ang_impulse += delta_ang_impulse;
+            impulse += delta_impulse;
+
             continue;
         } else {
 #if DIM == 2
@@ -214,7 +223,7 @@ fn p2g_step(packed_cell_index_in_block: u32, cell_width: f32, node_affinity: u32
         }
     }
 
-    return P2GStepResult(new_momentum_velocity_mass, impulse);
+    return P2GStepResult(new_momentum_velocity_mass, impulse, ang_impulse);
 }
 
 #if DIM == 2

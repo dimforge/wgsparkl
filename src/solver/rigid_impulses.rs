@@ -11,13 +11,14 @@ use rapier::math::{AngVector, Vector};
 use wgcore::kernel::{KernelInvocationBuilder, KernelInvocationQueue};
 use wgcore::tensor::GpuVector;
 use wgcore::Shader;
+use wgebra::{WgSim2, WgSim3};
 use wgparry::substitute_aliases;
 use wgpu::{BufferUsages, ComputePipeline, Device};
 use wgrapier::dynamics::{GpuBodySet, WgBody};
 
 #[derive(Shader)]
 #[shader(
-    derive(WgBody),
+    derive(WgBody, WgSim2, WgSim3, WgParams),
     src = "rigid_impulses.wgsl",
     src_fn = "substitute_aliases",
     shader_defs = "dim_shader_defs"
@@ -30,8 +31,8 @@ pub struct WgRigidImpulses {
 #[derive(ShaderType, Copy, Clone, PartialEq, Debug, Default)]
 #[repr(C)]
 pub struct RigidImpulse {
-    linear: Vector<f32>,
-    angular: AngVector<f32>,
+    pub linear: Vector<f32>,
+    pub angular: AngVector<f32>,
 }
 
 pub struct GpuImpulses {
@@ -64,6 +65,7 @@ impl WgRigidImpulses {
     pub fn queue_update<'a>(
         &'a self,
         queue: &mut KernelInvocationQueue<'a>,
+        sim_params: &GpuSimulationParams,
         impulses: &GpuImpulses,
         bodies: &GpuBodySet,
     ) {
@@ -72,7 +74,10 @@ impl WgRigidImpulses {
                 impulses.total_impulses.buffer(),
                 impulses.incremental_impulses.buffer(),
                 bodies.vels().buffer(),
+                bodies.local_mprops().buffer(),
                 bodies.mprops().buffer(),
+                bodies.poses().buffer(),
+                sim_params.params.buffer(),
             ])
             .queue(1);
     }

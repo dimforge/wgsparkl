@@ -252,6 +252,7 @@ pub fn step_simulation_legacy(
         bytemuck::cast_slice(&poses_data),
     );
 
+    let gravity = Vector::y() * -9.81;
     let vels_data: Vec<_> = physics
         .rapier_data
         .colliders
@@ -260,7 +261,9 @@ pub fn step_simulation_legacy(
             c.parent()
                 .and_then(|rb| physics.rapier_data.bodies.get(rb))
                 .map(|rb| GpuVelocity {
-                    linear: *rb.linvel(),
+                    linear: *rb.linvel()
+                        + gravity * physics.rapier_data.params.dt * (rb.is_dynamic() as u32 as f32)
+                            / app_state.num_substeps as f32,
                     angular: rb.angvel().clone(),
                 })
                 .unwrap_or_default()
@@ -324,7 +327,7 @@ pub fn step_simulation_legacy(
     // Submit.
     compute_queue.submit(Some(encoder.finish()));
 
-    let buf = futures::executor::block_on(
+    let impulses = futures::executor::block_on(
         physics
             .data
             .impulses
@@ -333,7 +336,23 @@ pub fn step_simulation_legacy(
     )
     .unwrap();
 
-    println!("Impulses: {:?}", buf);
+    println!("Impulses: {:?}", impulses[8]);
+
+    for (i, (_, rb)) in physics.rapier_data.bodies.iter_mut().enumerate() {
+        let prev_vel = *rb.linvel();
+        rb.apply_impulse(impulses[i].linear, true);
+        rb.apply_torque_impulse(impulses[i].angular, true);
+        let new_vel = *rb.linvel();
+        if i == 8 {
+            println!(
+                "Mass: {}, Vel before: {:?}, after: {:?}, diff: {:?}",
+                rb.mass(),
+                prev_vel,
+                new_vel,
+                new_vel - prev_vel
+            );
+        }
+    }
 
     // let buf =
     //     futures::executor::block_on(physics.data.grid.nodes_cdf_staging.read(device)).unwrap();
@@ -358,7 +377,7 @@ pub fn step_simulation_legacy(
     // );
 
     physics.rapier_data.physics_pipeline.step(
-        &(Vector::y() * -9.81),
+        &gravity,
         &physics.rapier_data.params,
         &mut physics.rapier_data.islands,
         &mut physics.rapier_data.broad_phase,

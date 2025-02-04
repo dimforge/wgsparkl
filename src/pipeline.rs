@@ -30,7 +30,6 @@ pub struct MpmPipeline {
     particles_update: WgParticleUpdate,
     g2p: WgG2P,
     g2p_cdf: WgG2PCdf,
-    integrate_bodies: WgIntegrate,
     pub impulses: WgRigidImpulses,
 }
 
@@ -64,7 +63,6 @@ impl MpmPipeline {
         changed = self.particles_update.reload_if_changed(device, state)? || changed;
         changed = self.g2p.reload_if_changed(device, state)? || changed;
         changed = self.g2p_cdf.reload_if_changed(device, state)? || changed;
-        changed = self.integrate_bodies.reload_if_changed(device, state)? || changed;
         changed = self.impulses.reload_if_changed(device, state)? || changed;
 
         Ok(changed)
@@ -128,7 +126,6 @@ impl MpmPipeline {
             particles_update: WgParticleUpdate::from_device(device)?,
             g2p: WgG2P::from_device(device)?,
             g2p_cdf: WgG2PCdf::from_device(device)?,
-            integrate_bodies: WgIntegrate::from_device(device)?,
             #[cfg(target_os = "macos")]
             touch_particle_blocks: TouchParticleBlocks::from_device(device),
             impulses: WgRigidImpulses::from_device(device)?,
@@ -201,8 +198,7 @@ impl MpmPipeline {
 
         // TODO: should this be in a separate pipeline? Within wgrapier probably?
         self.impulses
-            .queue_update(queue, &data.impulses, &data.bodies);
-        self.integrate_bodies.queue(queue, &data.bodies);
+            .queue_update(queue, &data.sim_params, &data.impulses, &data.bodies);
     }
 }
 
