@@ -13,9 +13,9 @@ fn kirchoff_stress(model: ElasticCoefficients, deformation_gradient: mat2x2<f32>
 #else
 fn kirchoff_stress(model: ElasticCoefficients, deformation_gradient: mat3x3<f32>) -> mat3x3<f32> {
 #endif
-    let j = determinant(deformation_gradient);
-    let diag = model.lambda * log(j) - model.mu / j;
-    var stress = model.mu / j * (deformation_gradient * transpose(deformation_gradient));
+    let j = max(determinant(deformation_gradient), 1.0e-10);
+    let diag = model.lambda * log(j) - model.mu;
+    var stress = model.mu  * (deformation_gradient * transpose(deformation_gradient));
     stress.x.x += diag;
     stress.y.y += diag;
     #if DIM == 3
