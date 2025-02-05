@@ -100,9 +100,9 @@ fn update(
         var new_pose = Body::integrateVelocity(poses[id], new_vel, local_mprops[id].com, params.dt);
         let new_mprops = Body::updateMprops(new_pose, local_mprops[id]);
 
-        if mprops[id].inv_mass.x > 0.0 { // TODO: add a body flags bitfield?
-            new_vel.linear += params.gravity * params.dt;
-        }
+        // Apply gravity.
+        let mass_mask = vec2f(mprops[id].inv_mass != Vector(0.0));
+        new_vel.linear += params.gravity * mass_mask * params.dt;
 
         vels[id] = new_vel;
         mprops[id] = new_mprops;

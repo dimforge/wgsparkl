@@ -454,56 +454,56 @@ fn collider_mesh_scale(co_shape: &dyn Shape) -> Vec3 {
     }
 }
 
-// #[cfg(feature = "dim2")]
-// fn generate_collider_mesh(co_shape: &dyn Shape) -> Option<Mesh> {
-//     let mesh = match co_shape.shape_type() {
-//         ShapeType::Capsule => {
-//             let capsule = co_shape.as_capsule().unwrap();
-//             bevy_mesh_from_polyline(capsule.to_polyline(10))
-//         }
-//         ShapeType::Triangle => {
-//             let tri = co_shape.as_triangle().unwrap();
-//             bevy_mesh_from_polyline(vec![tri.a, tri.b, tri.c])
-//         }
-//         ShapeType::TriMesh => {
-//             let trimesh = co_shape.as_trimesh().unwrap();
-//             let vertices = trimesh
-//                 .vertices()
-//                 .iter()
-//                 .map(|p| point![p.x, p.y, 0.0])
-//                 .collect();
-//             bevy_mesh((vertices, trimesh.indices().to_vec()))
-//         }
-//         ShapeType::Polyline => {
-//             let polyline = co_shape.as_polyline().unwrap();
-//             bevy_polyline((
-//                 polyline.vertices().to_vec(),
-//                 Some(polyline.indices().to_vec()),
-//             ))
-//         }
-//         ShapeType::HeightField => {
-//             let heightfield = co_shape.as_heightfield().unwrap();
-//             let vertices: Vec<_> = heightfield
-//                 .segments()
-//                 .flat_map(|s| vec![s.a, s.b])
-//                 .collect();
-//             bevy_polyline((vertices, None))
-//         }
-//         ShapeType::ConvexPolygon => {
-//             let poly = co_shape.as_convex_polygon().unwrap();
-//             bevy_mesh_from_polyline(poly.points().to_vec())
-//         }
-//         ShapeType::RoundConvexPolygon => {
-//             let poly = co_shape.as_round_convex_polygon().unwrap();
-//             bevy_mesh_from_polyline(poly.inner_shape.points().to_vec())
-//         }
-//         _ => return None,
-//     };
-//
-//     Some(mesh)
-// }
-//
-// #[cfg(feature = "dim3")]
+#[cfg(feature = "dim2")]
+fn generate_collider_mesh(co_shape: &dyn Shape) -> Option<Mesh> {
+    let mesh = match co_shape.shape_type() {
+        ShapeType::Capsule => {
+            let capsule = co_shape.as_capsule().unwrap();
+            bevy_mesh_from_polyline(capsule.to_polyline(10))
+        }
+        ShapeType::Triangle => {
+            let tri = co_shape.as_triangle().unwrap();
+            bevy_mesh_from_polyline(vec![tri.a, tri.b, tri.c])
+        }
+        ShapeType::TriMesh => {
+            let trimesh = co_shape.as_trimesh().unwrap();
+            let vertices = trimesh
+                .vertices()
+                .iter()
+                .map(|p| point![p.x, p.y])
+                .collect();
+            bevy_mesh((vertices, trimesh.indices().to_vec()))
+        }
+        ShapeType::Polyline => {
+            let polyline = co_shape.as_polyline().unwrap();
+            bevy_polyline((
+                polyline.vertices().to_vec(),
+                Some(polyline.indices().to_vec()),
+            ))
+        }
+        ShapeType::HeightField => {
+            let heightfield = co_shape.as_heightfield().unwrap();
+            let vertices: Vec<_> = heightfield
+                .segments()
+                .flat_map(|s| vec![s.a, s.b])
+                .collect();
+            bevy_polyline((vertices, None))
+        }
+        ShapeType::ConvexPolygon => {
+            let poly = co_shape.as_convex_polygon().unwrap();
+            bevy_mesh_from_polyline(poly.points().to_vec())
+        }
+        ShapeType::RoundConvexPolygon => {
+            let poly = co_shape.as_round_convex_polygon().unwrap();
+            bevy_mesh_from_polyline(poly.inner_shape.points().to_vec())
+        }
+        _ => return None,
+    };
+
+    Some(mesh)
+}
+
+#[cfg(feature = "dim3")]
 fn generate_collider_mesh(co_shape: &dyn Shape) -> Option<Mesh> {
     let mesh = match co_shape.shape_type() {
         #[cfg(feature = "dim3")]

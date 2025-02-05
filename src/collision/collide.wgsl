@@ -1,5 +1,5 @@
 #define_import_path wgsparkl::collision::collide
-#import wgparry::cuboid as Cuboid;
+#import wgparry::shape as Shape;
 #import wgrapier::body as Body;
 #import wgsparkl::grid::grid as Grid;
 
@@ -11,7 +11,7 @@
 
 
 @group(2) @binding(0)
-var<storage, read> collision_shapes: array<Cuboid::Cuboid>;
+var<storage, read> collision_shapes: array<Shape::Shape>;
 @group(2) @binding(1)
 var<storage, read> collision_shape_poses: array<Transform>;
 //@group(2) @binding(2)
@@ -36,10 +36,10 @@ fn collide(cell_width: f32, point: Vector) -> Grid::NodeCdf {
         // FIXME: figure out a way to support more than 16 colliders.
         let shape = collision_shapes[i];
         let shape_pose = collision_shape_poses[i];
-        let proj = Cuboid::projectPointOnBoundary(shape, shape_pose, point);
+        let proj = Shape::projectPointOnBoundary(shape, shape_pose, point);
         let dpt = proj.point - point;
 
-        if all(abs(dpt) <= dist_cap) {
+        if proj.is_inside || all(abs(dpt) <= dist_cap) {
             let dist = length(dpt);
             // TODO: take is_inside into account to select the deepest
             //       penetration as the closest collider?

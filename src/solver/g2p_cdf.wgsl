@@ -170,7 +170,7 @@ fn particle_g2p(particle_id: u32, cell_width: f32, dt: f32) {
 
         for (var i_collider = 0u; i_collider < 16u; i_collider += 1u) {
             let compatible = f32(Grid::affinity_bit(i_collider, cell_data.affinities));
-            let sign = select(1.0, -1.0, Grid::sign_bit(i_collider, cell_data.affinities));
+            let sign = select(1.0, -1.0, Grid::sign_bit(i_collider, cell_data.affinities) && !shape_has_solid_interior(i_collider));
             affinity_signs[i_collider] += compatible * weight * sign * cell_data.distance;
         }
     }
@@ -247,6 +247,11 @@ fn particle_g2p(particle_id: u32, cell_width: f32, dt: f32) {
         // TODO: store the affinity in this case too?
         particles_cdf[particle_id] = Particle::default_cdf();
     }
+}
+
+fn shape_has_solid_interior(i_collider: u32) -> bool {
+    // TODO: needs to be false for unoriented trimeshes and polylines
+    return true;
 }
 
 // TODO: upstream to wgebra?
