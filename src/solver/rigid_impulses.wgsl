@@ -2,6 +2,7 @@
 
 #import wgsparkl::solver::params as Params;
 #import wgrapier::body as Body;
+#import wgsparkl::grid::grid as Grid;
 
 #if DIM == 2
     #import wgebra::sim2 as Pose;
@@ -46,8 +47,6 @@ fn float_impulse_to_int(imp: Body::Impulse) -> IntegerImpulse {
     );
 }
 
-@group(0) @binding(0)
-var<storage, read_write> total_impulses: array<Body::Impulse>;
 @group(0) @binding(1)
 var<storage, read_write> incremental_impulses: array<IntegerImpulse>;
 @group(0) @binding(2)
@@ -75,10 +74,7 @@ fn update(
     let id = gid.x;
 
     if id < arrayLength(&vels) {
-        let inc_impulse = int_impulse_to_float(incremental_impulses[id]);
-
-        total_impulses[id].linear += inc_impulse.linear;
-        total_impulses[id].angular += inc_impulse.angular;
+        var inc_impulse = int_impulse_to_float(incremental_impulses[id]);
 
         // Reset the incremental impulse to zero for the next substep.
         incremental_impulses[id] = IntegerImpulse(vec2(0i), 0i);
@@ -86,23 +82,30 @@ fn update(
         // Apply impulse and integrate
         var new_vel = Body::applyImpulse(mprops[id], vels[id], inc_impulse);
 
-        if mprops[id].inv_mass.x > 0.0 { // TODO: has a body flags bitfield?
-            new_vel.linear += params.gravity * params.dt;
+        // Cap the velocities to not move more than a fraction of a cell-width in a given substep.
+        let lin_length = length(new_vel.linear);
+        let ang_length = abs(new_vel.angular);
+        let lin_limit = 0.1 * Grid::grid.cell_width / params.dt;
+        let ang_limit = 1.0; // TODO: what’s a good angular limit?
+
+        if (length(inc_impulse.linear) != 0.0 || inc_impulse.angular != 0.0) {
+            if lin_length > lin_limit {
+                new_vel.linear = new_vel.linear * (lin_limit / lin_length);
+            }
+            if ang_length > ang_limit {
+                new_vel.angular = new_vel.angular * (ang_limit / ang_length);
+            }
         }
 
-        let new_pose = Body::integrateVelocity(poses[id], new_vel, local_mprops[id].com, params.dt);
+        var new_pose = Body::integrateVelocity(poses[id], new_vel, local_mprops[id].com, params.dt);
         let new_mprops = Body::updateMprops(new_pose, local_mprops[id]);
+
+        if mprops[id].inv_mass.x > 0.0 { // TODO: add a body flags bitfield?
+            new_vel.linear += params.gravity * params.dt;
+        }
 
         vels[id] = new_vel;
         mprops[id] = new_mprops;
         poses[id] = new_pose;
     }
-}
-
-@compute @workgroup_size(16, 1, 1)
-fn reset(
-    @builtin(global_invocation_id) gid: vec3<u32>,
-) {
-    let id = gid.x;
-    total_impulses[id] = Body::Impulse(vec2(0.0), 0.0);
 }

@@ -77,15 +77,23 @@ fn main(
     if cdf.signed_distance < -0.05 * cell_width {
         new_particle_vel = cdf.rigid_vel + Grid::project_velocity((new_particle_vel - cdf.rigid_vel), cdf.normal);
     }
+
+    // Clamp the max velocity a particle can get.
+    // TODO: clamp the grid velocities instead?
+    if length(new_particle_vel) > cell_width / dt {
+        new_particle_vel = new_particle_vel / length(new_particle_vel) * cell_width / dt;
+    }
+
     let new_particle_pos = particle_pos + new_particle_vel * dt;
 
     /*
      * Penalty impulse.
      */
-     const PENALTY_COEFF: f32 = 1.0e4;
-     if cdf.signed_distance < -0.05 * cell_width && cdf.signed_distance > -0.3 * cell_width {
-         let impulse = (dt * -cdf.signed_distance * PENALTY_COEFF) * cdf.normal;
-         // new_particle_vel += impulse / curr_particle_vol.mass;
+     const PENALTY_COEFF: f32 = 1.0e3;
+     if cdf.signed_distance < -0.05 * cell_width { // && cdf.signed_distance > -0.3 * cell_width {
+         let corrected_dist = max(cdf.signed_distance, -0.3 * cell_width);
+         let impulse = (dt * -corrected_dist * PENALTY_COEFF) * cdf.normal;
+         new_particle_vel += impulse; // / curr_particle_vol.mass;
      }
 
     /*

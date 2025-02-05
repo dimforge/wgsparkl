@@ -11,8 +11,10 @@ use rapier::dynamics::RigidBodySet;
 use rapier::geometry::ColliderSet;
 use wgcore::hot_reloading::HotReloadState;
 use wgcore::kernel::KernelInvocationQueue;
+use wgcore::tensor::GpuVector;
 use wgcore::Shader;
-use wgpu::Device;
+use wgparry::math::GpuSim;
+use wgpu::{BufferUsages, Device};
 use wgrapier::dynamics::{BodyDesc, GpuBodySet, WgIntegrate};
 
 #[cfg(target_os = "macos")]
@@ -80,6 +82,7 @@ pub struct MpmData {
     pub particles: GpuParticles, // TODO: keep private?
     pub bodies: GpuBodySet,
     pub impulses: GpuImpulses,
+    pub poses_staging: GpuVector<GpuSim>,
     prefix_sum: PrefixSumWorkspace,
     models: GpuModels,
 }
@@ -101,6 +104,11 @@ impl MpmData {
         let prefix_sum = PrefixSumWorkspace::with_capacity(device, grid_capacity);
         let bodies = GpuBodySet::from_rapier(device, bodies, colliders);
         let impulses = GpuImpulses::new(device);
+        let poses_staging = GpuVector::uninit(
+            device,
+            bodies.len(),
+            BufferUsages::COPY_DST | BufferUsages::MAP_READ,
+        );
 
         Self {
             sim_params,
@@ -110,6 +118,7 @@ impl MpmData {
             grid,
             prefix_sum,
             models,
+            poses_staging,
         }
     }
 }
@@ -197,8 +206,13 @@ impl MpmPipeline {
         queue.compute_pass("integrate_bodies", add_timestamps);
 
         // TODO: should this be in a separate pipeline? Within wgrapier probably?
-        self.impulses
-            .queue_update(queue, &data.sim_params, &data.impulses, &data.bodies);
+        self.impulses.queue(
+            queue,
+            &data.grid,
+            &data.sim_params,
+            &data.impulses,
+            &data.bodies,
+        );
     }
 }
 

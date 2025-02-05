@@ -112,6 +112,14 @@ fn setup_rapier_graphics(
     to_clear: &Query<Entity, With<InstanceMaterialData>>,
 ) {
     for (handle, collider) in physics.rapier_data.colliders.iter() {
+        let parent = &physics.rapier_data.bodies[collider.parent().unwrap()];
+        let color = if parent.is_fixed() {
+            point![0.5, 0.5, 0.5]
+        } else if parent.is_kinematic() {
+            point![0.0, 0.0, 1.0]
+        } else {
+            point![0.0, 1.0, 0.0]
+        };
         let e = EntityWithGraphics::spawn(
             commands,
             meshes,
@@ -122,7 +130,7 @@ fn setup_rapier_graphics(
             Some(handle),
             *collider.position(),
             Isometry::identity(), // TODO
-            point![1.0, 0.0, 0.0],
+            color,
             false,
         );
         rigid_render.rigid_entities.push(e);

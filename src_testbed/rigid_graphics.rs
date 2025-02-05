@@ -59,6 +59,7 @@ impl EntityWithGraphics {
         //     ..default()
         // };
         // #[cfg(feature = "dim3")]
+
         let selection_material = StandardMaterial {
             metallic: 0.5,
             perceptual_roughness: 0.5,

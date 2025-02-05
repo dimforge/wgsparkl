@@ -18,14 +18,13 @@ use wgrapier::dynamics::{GpuBodySet, WgBody};
 
 #[derive(Shader)]
 #[shader(
-    derive(WgBody, WgSim2, WgSim3, WgParams),
+    derive(WgBody, WgSim2, WgSim3, WgParams, WgGrid),
     src = "rigid_impulses.wgsl",
     src_fn = "substitute_aliases",
     shader_defs = "dim_shader_defs"
 )]
 pub struct WgRigidImpulses {
     pub update: ComputePipeline,
-    pub reset: ComputePipeline,
 }
 
 #[derive(ShaderType, Copy, Clone, PartialEq, Debug, Default)]
@@ -62,16 +61,17 @@ impl GpuImpulses {
 }
 
 impl WgRigidImpulses {
-    pub fn queue_update<'a>(
+    pub fn queue<'a>(
         &'a self,
         queue: &mut KernelInvocationQueue<'a>,
+        grid: &GpuGrid,
         sim_params: &GpuSimulationParams,
         impulses: &GpuImpulses,
         bodies: &GpuBodySet,
     ) {
         KernelInvocationBuilder::new(queue, &self.update)
             .bind0([
-                impulses.total_impulses.buffer(),
+                grid.meta.buffer(),
                 impulses.incremental_impulses.buffer(),
                 bodies.vels().buffer(),
                 bodies.local_mprops().buffer(),
@@ -79,16 +79,6 @@ impl WgRigidImpulses {
                 bodies.poses().buffer(),
                 sim_params.params.buffer(),
             ])
-            .queue(1);
-    }
-
-    pub fn queue_reset<'a>(
-        &'a self,
-        queue: &mut KernelInvocationQueue<'a>,
-        impulses: &GpuImpulses,
-    ) {
-        KernelInvocationBuilder::new(queue, &self.reset)
-            .bind0([impulses.total_impulses.buffer()])
             .queue(1);
     }
 }
