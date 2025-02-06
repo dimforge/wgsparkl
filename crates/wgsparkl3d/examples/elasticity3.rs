@@ -1,8 +1,9 @@
-use wgsparkl_testbed3d::wgsparkl;
+use wgsparkl_testbed3d::{wgsparkl, RapierData};
 
 use bevy::prelude::*;
 use bevy::render::renderer::RenderDevice;
 use nalgebra::{vector, Similarity3, Vector3};
+use rapier3d::prelude::{ColliderBuilder, RigidBodyBuilder};
 use wgebra::GpuSim3;
 use wgparry3d::parry::shape::Cuboid;
 use wgrapier3d::dynamics::BodyDesc;
@@ -37,6 +38,7 @@ fn start_default_scene(mut commands: Commands, scenes: Res<SceneInits>) {
 }
 
 fn sand_demo(mut commands: Commands, device: Res<RenderDevice>, mut app_state: ResMut<AppState>) {
+    let mut rapier_data = RapierData::default();
     let device = device.wgpu_device();
 
     let cell_width = 1.0;
@@ -73,15 +75,25 @@ fn sand_demo(mut commands: Commands, device: Res<RenderDevice>, mut app_state: R
         dt: (1.0 / 60.0) / (app_state.num_substeps as f32),
     };
 
-    let bodies = vec![BodyDesc {
-        shape: Cuboid::new(vector![10000.0, 4.0, 10000.0]),
-        pose: GpuSim3::from(Similarity3::new(
-            vector![0.0, -4.0, 0.0],
-            Vector3::zeros(),
-            1.0,
-        )),
-        ..BodyDesc::default()
-    }];
-    let data = MpmData::new(device, params, &particles, &bodies, cell_width, 60_000);
-    commands.insert_resource(PhysicsContext { data, particles });
+    let rb = RigidBodyBuilder::fixed().translation(vector![0.0, -4.0, 0.0]);
+    let rb_handle = rapier_data.bodies.insert(rb);
+    let co = ColliderBuilder::cuboid(100.0, 4.0, 100.0);
+    rapier_data
+        .colliders
+        .insert_with_parent(co, rb_handle, &mut rapier_data.bodies);
+
+    let data = MpmData::new(
+        device,
+        params,
+        &particles,
+        &rapier_data.bodies,
+        &rapier_data.colliders,
+        cell_width,
+        60_000,
+    );
+    commands.insert_resource(PhysicsContext {
+        data,
+        rapier_data,
+        particles,
+    });
 }

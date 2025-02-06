@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use bevy::render::mesh::{Indices, VertexAttributeValues};
 
 //use crate::objects::plane::Plane;
-use nalgebra::{point, Point3, Vector3};
+use nalgebra::{point, Point2, Point3, Vector3};
 use std::collections::HashMap;
 
 use bevy::render::render_resource::PrimitiveTopology;
@@ -16,7 +16,7 @@ use wgsparkl::rapier::math::{Isometry, Real, Vector};
 use crate::{PhysicsContext, RenderContext};
 #[cfg(feature = "dim2")]
 use {
-    nalgebra::{Point2, Vector2},
+    nalgebra::Vector2,
     wgsparkl::rapier::geometry::{Ball, Cuboid},
 };
 

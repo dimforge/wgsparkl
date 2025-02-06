@@ -29,7 +29,9 @@ struct RenderConfig {
 const DEFAULT: u32 = 0;
 const VOLUME: u32 = 1;
 const VELOCITY: u32 = 2;
-const CDF: u32 = 3;
+const CDF_NORMALS: u32 = 3;
+const CDF_DISTANCES: u32 = 4;
+const CDF_SIGNS: u32 = 5;
 
 
 struct InstanceData {
@@ -64,9 +66,31 @@ fn main(
             let svd = Svd3::svd(def_grad);
             let color_xyz = (vec3(1.0) - svd.S) / 0.005 + vec3(0.2);
             instances[particle_id].color = vec4(color_xyz, color.w);
-        } else if config.mode == CDF {
-            let n = particles_cdf[particle_id].normal;
-            instances[particle_id].color = vec4(abs(n) * dt * 100.0 + vec2(0.2), color.w);
-        }
+        } else if config.mode == CDF_NORMALS {
+            let particle_normal = particles_cdf[particle_id].normal;
+            if all(particle_normal == vec3(0.0)) {
+                instances[particle_id].color = vec4(0.0, 0.0, 0.0, color.w);
+            } else {
+                let n = (particle_normal + vec3(1.0)) / 2.0;
+                instances[particle_id].color = vec4(n.x, n.y, n.z, color.w);
+            }
+        } else if config.mode == CDF_DISTANCES {
+            let d = particles_cdf[particle_id].signed_distance / (cell_width * 1.5);
+            if d > 0.0 {
+                instances[particle_id].color = vec4(0.0, abs(d), 0.0, color.w);
+            } else {
+                instances[particle_id].color = vec4(abs(d), 0.0, 0.0, color.w);
+            }
+        } else if config.mode == CDF_SIGNS {
+             let d = particles_cdf[particle_id].affinity;
+             let a = (d >> 16) & (d & 0x0000ffff);
+             if d == 0 {
+                 instances[particle_id].color = vec4(0.0, 0.0, 0.0, color.w);
+             } else if a == 0 {
+                 instances[particle_id].color = vec4(0.0, 1.0, 0.0, color.w);
+             } else {
+                 instances[particle_id].color = vec4(1.0, 0.0, 0.0, color.w);
+             }
+         }
     }
 }

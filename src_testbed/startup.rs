@@ -20,9 +20,9 @@ use wgcore::hot_reloading::HotReloadState;
 use wgcore::tensor::GpuVector;
 use wgcore::timestamps::GpuTimestamps;
 use wgcore::Shader;
-use wgparry2d::parry::math::Isometry;
 use wgpu::Features;
 use wgsparkl::pipeline::MpmPipeline;
+use wgsparkl::rapier::parry::math::Isometry;
 
 /// set up a simple 3D scene
 pub fn setup_app(mut commands: Commands, device: Res<RenderDevice>) {

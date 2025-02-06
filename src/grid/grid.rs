@@ -1,7 +1,7 @@
-use crate::dim_shader_defs;
 use crate::grid::prefix_sum::{PrefixSumWorkspace, WgPrefixSum};
 use crate::grid::sort::WgSort;
 use crate::solver::{GpuParticles, WgParams};
+use crate::{dim_shader_defs, substitute_aliases};
 use std::sync::Arc;
 use wgcore::kernel::{KernelInvocationBuilder, KernelInvocationQueue};
 use wgcore::tensor::{GpuScalar, GpuVector};
@@ -13,7 +13,12 @@ use wgpu::{Buffer, BufferAddress, BufferDescriptor, BufferUsages, ComputePipelin
 use crate::grid::sort::TouchParticleBlocks;
 
 #[derive(Shader)]
-#[shader(derive(WgParams), src = "grid.wgsl", shader_defs = "dim_shader_defs")]
+#[shader(
+    derive(WgParams),
+    src = "grid.wgsl",
+    shader_defs = "dim_shader_defs",
+    src_fn = "substitute_aliases"
+)]
 pub struct WgGrid {
     reset_hmap: ComputePipeline,
     reset: ComputePipeline,

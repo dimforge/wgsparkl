@@ -381,7 +381,7 @@ struct SimulationParameters {
     #endif
 }
 
-fn project_velocity(vel: vec2<f32>, n: vec2<f32>) -> vec2<f32> {
+fn project_velocity(vel: Vector, n: Vector) -> Vector {
     // TODO: this should depend on the collider’s material
     //       properties.
     let normal_vel = dot(vel, n);
@@ -390,7 +390,7 @@ fn project_velocity(vel: vec2<f32>, n: vec2<f32>) -> vec2<f32> {
         let friction = 0.9;
         let tangent_vel = vel - n * normal_vel;
         let tangent_vel_len = length(tangent_vel);
-        let tangent_vel_dir = select(vec2(0.0), tangent_vel / tangent_vel_len, tangent_vel_len > 1.0e-8);
+        let tangent_vel_dir = select(Vector(0.0), tangent_vel / tangent_vel_len, tangent_vel_len > 1.0e-8);
         return tangent_vel_dir * max(0.0, tangent_vel_len + friction * normal_vel);
     } else {
         return vel;

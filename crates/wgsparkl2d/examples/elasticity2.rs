@@ -210,6 +210,7 @@ fn elastic_demo(
     mut app_state: ResMut<AppState>,
 ) {
     let device = device.wgpu_device();
+    let mut rapier_data = RapierData::default();
 
     let offset_y = 10.0;
     // let cell_width = 0.1;
@@ -249,25 +250,31 @@ fn elastic_demo(
         padding: 0.0,
     };
 
-    // let colliders = vec![
-    //     BodyDesc {
-    //         shape: Cuboid::new(vector![1000.0, 1.0]),
-    //         pose: GpuSim2::from(Similarity2::new(vector![0.0, -1.0], 0.0, 1.0)),
-    //         ..Default::default()
-    //     },
-    //     BodyDesc {
-    //         shape: Cuboid::new(vector![1.0, 60.0]),
-    //         pose: GpuSim2::from(Similarity2::new(vector![-20.0, 0.0], 0.5, 1.0)),
-    //         ..BodyDesc::default()
-    //     },
-    //     BodyDesc {
-    //         shape: Cuboid::new(vector![1.0, 60.0]),
-    //         pose: GpuSim2::from(Similarity2::new(vector![90.0, 0.0], -0.5, 1.0)),
-    //         ..BodyDesc::default()
-    //     },
-    // ];
+    let rb = RigidBodyBuilder::fixed().translation(vector![0.0, -1.0]);
+    let rb_handle = rapier_data.bodies.insert(rb);
+    let co = ColliderBuilder::cuboid(1000.0, 1.0);
+    rapier_data
+        .colliders
+        .insert_with_parent(co, rb_handle, &mut rapier_data.bodies);
 
-    let rapier_data = RapierData::default();
+    let rb = RigidBodyBuilder::fixed()
+        .translation(vector![-20.0, 0.0])
+        .rotation(0.5);
+    let rb_handle = rapier_data.bodies.insert(rb);
+    let co = ColliderBuilder::cuboid(1.0, 60.0);
+    rapier_data
+        .colliders
+        .insert_with_parent(co, rb_handle, &mut rapier_data.bodies);
+
+    let rb = RigidBodyBuilder::fixed()
+        .translation(vector![90.0, 0.0])
+        .rotation(-0.5);
+    let rb_handle = rapier_data.bodies.insert(rb);
+    let co = ColliderBuilder::cuboid(1.0, 60.0);
+    rapier_data
+        .colliders
+        .insert_with_parent(co, rb_handle, &mut rapier_data.bodies);
+
     let data = MpmData::new(
         device,
         params,

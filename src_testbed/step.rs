@@ -8,10 +8,10 @@ use std::time::Instant;
 use wgcore::kernel::KernelInvocationQueue;
 use wgcore::re_exports::encase::StorageBuffer;
 use wgcore::timestamps::GpuTimestamps;
-use wgparry2d::math::GpuSim;
 use wgpu::{Device, Queue};
 use wgsparkl::rapier::math::Vector;
 use wgsparkl::rapier::prelude::RigidBodyPosition;
+use wgsparkl::wgparry::math::GpuSim;
 use wgsparkl::wgrapier::dynamics::{GpuBodySet, GpuVelocity};
 
 #[derive(Resource)]
@@ -76,7 +76,12 @@ pub fn step_simulation_legacy(
         .rapier_data
         .colliders
         .iter()
-        .map(|(_, c)| (*c.position()).into())
+        .map(|(_, c)| {
+            #[cfg(feature = "dim2")]
+            return (*c.position()).into();
+            #[cfg(feature = "dim3")]
+            return GpuSim::from_isometry(*c.position(), 1.0);
+        })
         .collect();
     compute_queue.write_buffer(
         physics.data.bodies.poses().buffer(),
@@ -159,7 +164,10 @@ pub fn step_simulation_legacy(
             let vel_before = *rb.linvel();
             let interpolator = RigidBodyPosition {
                 position: *rb.position(),
+                #[cfg(feature = "dim2")]
                 next_position: new_poses[i].similarity.isometry,
+                #[cfg(feature = "dim3")]
+                next_position: new_poses[i].isometry,
             };
             let vel = interpolator.interpolate_velocity(
                 1.0 / (physics.rapier_data.params.dt / divisor),

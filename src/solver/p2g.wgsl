@@ -75,6 +75,7 @@ struct P2GStepResult {
 #else
     new_momentum_velocity_mass: vec4<f32>,
     impulse: vec3<f32>,
+    ang_impulse: vec3<f32>,
 #endif
 }
 
@@ -150,9 +151,19 @@ fn p2g(
     // PERF: we should probably run a reduction here to get per-collider accumulated impulses
     //       before adding to global memory. Because it is very likely that every single thread
     //       here targets the same body.
+
+#if DIM == 2
     atomicAdd(&body_impulses[closest_body].linear_x, Impulse::flt2int(total_result.impulse.x));
     atomicAdd(&body_impulses[closest_body].linear_y, Impulse::flt2int(total_result.impulse.y));
     atomicAdd(&body_impulses[closest_body].angular, Impulse::flt2int(total_result.ang_impulse));
+#else
+    atomicAdd(&body_impulses[closest_body].linear_x, Impulse::flt2int(total_result.impulse.x));
+    atomicAdd(&body_impulses[closest_body].linear_y, Impulse::flt2int(total_result.impulse.y));
+    atomicAdd(&body_impulses[closest_body].linear_z, Impulse::flt2int(total_result.impulse.z));
+    atomicAdd(&body_impulses[closest_body].angular_x, Impulse::flt2int(total_result.ang_impulse.x));
+    atomicAdd(&body_impulses[closest_body].angular_y, Impulse::flt2int(total_result.ang_impulse.y));
+    atomicAdd(&body_impulses[closest_body].angular_z, Impulse::flt2int(total_result.ang_impulse.z));
+#endif
 }
 
 fn p2g_step(packed_cell_index_in_block: u32, cell_width: f32, node_affinity: u32, closest_body: u32) -> P2GStepResult {
@@ -170,7 +181,7 @@ fn p2g_step(packed_cell_index_in_block: u32, cell_width: f32, node_affinity: u32
     var new_momentum_velocity_mass = vec4(0.0);
 #endif
     var impulse = Vector(0.0);
-    var ang_impulse = 0.0;
+    var ang_impulse = AngVector(0.0);
 
     for (var i = 0u; i < Kernel::NBH_LEN; i += 1u) {
         let packed_shift = NBH_SHIFTS_SHARED[i];
@@ -207,8 +218,15 @@ fn p2g_step(packed_cell_index_in_block: u32, cell_width: f32, node_affinity: u32
             let body_pt_vel =  Body::velocity_at_point(body_com, body_vel, cell_center);
             let particle_ghost_vel = body_pt_vel + Grid::project_velocity(particle_vel - body_pt_vel, particle_normal);
             let delta_impulse = (particle_vel - particle_ghost_vel) * (weight * particle_mass);
+
+            // TODO: we could do the ang impulse calcs only once after all the `p2g_step` executions.
             let lever_arm = body_com - cell_center;
+
+#if DIM == 2
             let delta_ang_impulse = dot(delta_impulse, vec2(lever_arm.y, -lever_arm.x));
+#else
+            let delta_ang_impulse = cross(delta_impulse, lever_arm);
+#endif
 
             ang_impulse += delta_ang_impulse;
             impulse += delta_impulse;
