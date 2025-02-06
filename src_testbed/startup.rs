@@ -55,7 +55,7 @@ pub fn setup_app(mut commands: Commands, device: Res<RenderDevice>) {
     let features = device.features();
     let timestamps = features
         .contains(Features::TIMESTAMP_QUERY)
-        .then(|| GpuTimestamps::new(device.wgpu_device(), 256));
+        .then(|| GpuTimestamps::new(device.wgpu_device(), 512));
     commands.insert_resource(Timestamps {
         timestamps,
         ..Default::default()

@@ -210,13 +210,21 @@ pub fn step_simulation_legacy(
             };
 
             for i in 0..num_substeps {
-                let times = &timestamps_ms[i * 12..];
-                new_timings.grid_sort += times[1] - times[0];
-                new_timings.p2g += times[3] - times[2];
-                new_timings.grid_update += times[5] - times[4];
-                new_timings.g2p += times[7] - times[6];
-                new_timings.particles_update += times[9] - times[8];
-                new_timings.integrate_bodies += times[11] - times[10];
+                let mut timings = [
+                    &mut new_timings.grid_sort,
+                    &mut new_timings.grid_update_cdf,
+                    &mut new_timings.g2p_cdf,
+                    &mut new_timings.p2g,
+                    &mut new_timings.grid_update,
+                    &mut new_timings.g2p,
+                    &mut new_timings.particles_update,
+                    &mut new_timings.integrate_bodies,
+                ];
+                let times = &timestamps_ms[i * timings.len() * 2..];
+
+                for (k, timing) in timings.iter_mut().enumerate() {
+                    **timing += times[k * 2 + 1] - times[k * 2];
+                }
             }
             timings_snd.send(new_timings).await.unwrap();
         };

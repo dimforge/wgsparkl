@@ -128,6 +128,8 @@ pub struct RenderContext {
 pub struct Timestamps {
     pub timestamps: Option<GpuTimestamps>,
     pub grid_sort: f64,
+    pub grid_update_cdf: f64,
+    pub g2p_cdf: f64,
     pub p2g: f64,
     pub grid_update: f64,
     pub g2p: f64,
@@ -138,6 +140,8 @@ pub struct Timestamps {
 impl Timestamps {
     pub fn total_time(&self) -> f64 {
         self.grid_sort
+            + self.grid_update_cdf
+            + self.g2p_cdf
             + self.p2g
             + self.grid_update
             + self.g2p

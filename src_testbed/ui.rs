@@ -94,6 +94,8 @@ pub fn update_ui(
             .id_salt("GPU runtimes")
             .show(ui, |ui| {
                 ui.label(format!("Grid sort: {:.3}ms", timings.grid_sort));
+                ui.label(format!("CDF Grid update: {:.3}ms", timings.grid_update_cdf));
+                ui.label(format!("CDF G2P: {:.3}ms", timings.g2p_cdf));
                 ui.label(format!("P2G: {:.3}ms", timings.p2g));
                 ui.label(format!("Grid update: {:.3}ms", timings.grid_update));
                 ui.label(format!("G2P: {:.3}ms", timings.g2p));
