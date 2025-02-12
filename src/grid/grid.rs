@@ -138,6 +138,7 @@ impl WgGrid {
                     (grid.nodes.buffer(), 3),
                     (grid.nodes_linked_lists.buffer(), 6),
                     (grid.nodes_cdf.buffer(), 9),
+                    (grid.nodes_rigid_linked_lists.buffer(), 10),
                 ],
             )
             .queue_indirect(n_block_groups.clone());
@@ -230,6 +231,7 @@ pub struct GpuGrid {
     pub active_blocks: GpuVector<GpuActiveBlockHeader>,
     pub scan_values: GpuVector<u32>,
     pub nodes_linked_lists: GpuVector<[u32; 2]>,
+    pub nodes_rigid_linked_lists: GpuVector<[u32; 2]>,
     pub indirect_n_blocks_groups: Arc<Buffer>,
     pub indirect_n_g2p_p2g_groups: Arc<Buffer>,
     pub debug: GpuVector<u32>,
@@ -264,6 +266,8 @@ impl GpuGrid {
         );
         let nodes_linked_lists =
             GpuVector::uninit(device, capacity * NODES_PER_BLOCK, BufferUsages::STORAGE);
+        let nodes_rigid_linked_lists =
+            GpuVector::uninit(device, capacity * NODES_PER_BLOCK, BufferUsages::STORAGE);
         let active_blocks = GpuVector::uninit(device, capacity, BufferUsages::STORAGE);
         let scan_values = GpuVector::uninit(device, capacity, BufferUsages::STORAGE);
         let indirect_n_blocks_groups = Arc::new(device.create_buffer(&BufferDescriptor {
@@ -292,6 +296,7 @@ impl GpuGrid {
             indirect_n_blocks_groups,
             indirect_n_g2p_p2g_groups,
             nodes_linked_lists,
+            nodes_rigid_linked_lists,
             debug,
         }
     }

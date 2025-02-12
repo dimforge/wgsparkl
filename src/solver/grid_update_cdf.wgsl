@@ -31,6 +31,9 @@ fn grid_update(
     let cell_pos = vec3<f32>(vid.id * 4 + vec3<i32>(tid)) * Grid::grid.cell_width;
 #endif
 
+    // PERF: store the list of blocks with a collision so we can skip the ones without
+    //       collisions in teh other `_cdf` kernels.
+    //       Or maybe just use some sort of flag and skip the block at the start of the kernel?
     let global_id = global_node_id.id;
     Grid::nodes_cdf[global_id] = Collide::collide(Grid::grid.cell_width, cell_pos);
 }

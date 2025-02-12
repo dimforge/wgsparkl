@@ -65,6 +65,8 @@ fn g2p(
     // Particle update. Runs g2p on shared memory only.
     let max_particle_id = (*active_block).first_particle + (*active_block).num_particles;
 
+    // PERF: could we rely on the particle linked lists instead of the sorted ids?
+    //       That could eliminate the cost of particle sorting.
     for (var sorted_particle_id = (*active_block).first_particle + tid_flat;
          sorted_particle_id < max_particle_id;
          sorted_particle_id += WORKGROUP_SIZE) {

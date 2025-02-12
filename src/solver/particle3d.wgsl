@@ -24,6 +24,12 @@ struct Cdf {
 //    closest_id: u32,
 }
 
+struct RigidParticleIndices {
+    segment: vec2<u32>,
+    collider: u32,
+}
+
+
 fn default_cdf() -> Cdf {
     return Cdf(vec3(0.0), vec3(0.0), 0.0, 0);
 }

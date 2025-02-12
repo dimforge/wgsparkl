@@ -98,7 +98,6 @@ impl EntityWithGraphics {
             .get(&shape.shape_type())
             .cloned()
             .or_else(|| generate_collider_mesh(shape).map(|m| meshes.add(m)));
-        println!("mesh is some: {}", mesh.is_some());
 
         let opacity = 1.0;
         let bevy_color = Color::from(Srgba::new(color.x, color.y, color.z, opacity));
@@ -157,7 +156,6 @@ impl EntityWithGraphics {
                 transform,
             );
 
-            println!("Inserting.");
             let mut entity_commands = commands.entity(entity);
             entity_commands.insert(bundle);
         }

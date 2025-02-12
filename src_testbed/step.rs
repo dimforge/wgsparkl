@@ -213,6 +213,7 @@ pub fn step_simulation_legacy(
                 let mut timings = [
                     &mut new_timings.grid_sort,
                     &mut new_timings.grid_update_cdf,
+                    &mut new_timings.p2g_cdf,
                     &mut new_timings.g2p_cdf,
                     &mut new_timings.p2g,
                     &mut new_timings.grid_update,

@@ -250,8 +250,9 @@ fn particle_g2p(particle_id: u32, cell_width: f32, dt: f32) {
 }
 
 fn shape_has_solid_interior(i_collider: u32) -> bool {
-    // TODO: needs to be false for unoriented trimeshes and polylines
-    return true;
+    // TODO: needs to be false for unoriented trimeshes and polylines,
+    //       true for geometric primitives.
+    return false;
 }
 
 // TODO: upstream to wgebra?

@@ -21,7 +21,7 @@ var<storage, read> collision_shape_poses: array<Transform>;
 
 
 fn collide(cell_width: f32, point: Vector) -> Grid::NodeCdf {
-    const MAX_FLT: f32 = 3.40282347E+38; // Is that constant already defined somewhere in WGSL?
+    const MAX_FLT: f32 = 1.0e10; // Is the f32::MAX constant defined somewhere in WGSL?
     var cdf = Grid::NodeCdf(MAX_FLT, 0u, 0u);
 
 #if DIM == 2
@@ -36,16 +36,19 @@ fn collide(cell_width: f32, point: Vector) -> Grid::NodeCdf {
         // FIXME: figure out a way to support more than 16 colliders.
         let shape = collision_shapes[i];
         let shape_pose = collision_shape_poses[i];
-        let proj = Shape::projectPointOnBoundary(shape, shape_pose, point);
-        let dpt = proj.point - point;
+        let shape_type = Shape::shape_type(shape);
+        if shape_type != Shape::SHAPE_TYPE_POLYLINE {
+            let proj = Shape::projectPointOnBoundary(shape, shape_pose, point);
+            let dpt = proj.point - point;
 
-        if proj.is_inside || all(abs(dpt) <= dist_cap) {
-            let dist = length(dpt);
-            // TODO: take is_inside into account to select the deepest
-            //       penetration as the closest collider?
-            cdf.closest_id = select(cdf.closest_id, i, dist < cdf.distance);
-            cdf.distance = min(cdf.distance, dist);
-            cdf.affinities |= select(0x00000001u, 0x00010001u, proj.is_inside) << i;
+            if proj.is_inside || all(abs(dpt) <= dist_cap) {
+                let dist = length(dpt);
+                // TODO: take is_inside into account to select the deepest
+                //       penetration as the closest collider?
+                cdf.closest_id = select(cdf.closest_id, i, dist < cdf.distance);
+                cdf.distance = min(cdf.distance, dist);
+                cdf.affinities |= select(0x00000001u, 0x00010001u, proj.is_inside) << i;
+            }
         }
     }
 

@@ -11,7 +11,7 @@ use wgsparkl::models::DruckerPrager;
 use wgsparkl::{
     models::ElasticCoefficients,
     pipeline::MpmData,
-    solver::{Particle, ParticleMassProps, SimulationParams},
+    solver::{Particle, ParticleMassProps, ParticlePhase, SimulationParams},
 };
 use wgsparkl_testbed3d::{init_testbed, AppState, PhysicsContext, SceneInits};
 
@@ -41,13 +41,17 @@ fn sand_demo(mut commands: Commands, device: Res<RenderDevice>, mut app_state: R
     let mut rapier_data = RapierData::default();
     let device = device.wgpu_device();
 
+    let nxz = 45;
     let cell_width = 1.0;
     let mut particles = vec![];
-    for i in 0..45 {
+    for i in 0..nxz {
         for j in 0..100 {
-            for k in 0..45 {
-                let position = vector![i as f32 + 0.5, j as f32 + 0.5 + 10.0, k as f32 + 0.5]
-                    * cell_width
+            for k in 0..nxz {
+                let position = vector![
+                    i as f32 + 0.5 - nxz as f32 / 2.0,
+                    j as f32 + 0.5 + 10.0,
+                    k as f32 + 0.5 - nxz as f32 / 2.0
+                ] * cell_width
                     / 2.0;
                 let density = 2700.0;
                 particles.push(Particle {
@@ -78,6 +82,41 @@ fn sand_demo(mut commands: Commands, device: Res<RenderDevice>, mut app_state: R
     let rb = RigidBodyBuilder::fixed().translation(vector![0.0, -4.0, 0.0]);
     let rb_handle = rapier_data.bodies.insert(rb);
     let co = ColliderBuilder::cuboid(100.0, 4.0, 100.0);
+    rapier_data
+        .colliders
+        .insert_with_parent(co, rb_handle, &mut rapier_data.bodies);
+
+    let rb = RigidBodyBuilder::fixed().translation(vector![0.0, 5.0, -35.0]);
+    let rb_handle = rapier_data.bodies.insert(rb);
+    let co = ColliderBuilder::cuboid(35.0, 5.0, 0.5);
+    rapier_data
+        .colliders
+        .insert_with_parent(co, rb_handle, &mut rapier_data.bodies);
+    let rb = RigidBodyBuilder::fixed().translation(vector![0.0, 5.0, 35.0]);
+    let rb_handle = rapier_data.bodies.insert(rb);
+    let co = ColliderBuilder::cuboid(35.0, 5.0, 0.5);
+    rapier_data
+        .colliders
+        .insert_with_parent(co, rb_handle, &mut rapier_data.bodies);
+    let rb = RigidBodyBuilder::fixed().translation(vector![-35.0, 5.0, 0.0]);
+    let rb_handle = rapier_data.bodies.insert(rb);
+    let co = ColliderBuilder::cuboid(0.5, 5.0, 35.0);
+    rapier_data
+        .colliders
+        .insert_with_parent(co, rb_handle, &mut rapier_data.bodies);
+    let rb = RigidBodyBuilder::fixed().translation(vector![35.0, 5.0, 0.0]);
+    let rb_handle = rapier_data.bodies.insert(rb);
+    let co = ColliderBuilder::cuboid(0.5, 5.0, 35.0);
+    rapier_data
+        .colliders
+        .insert_with_parent(co, rb_handle, &mut rapier_data.bodies);
+
+    let rb = RigidBodyBuilder::kinematic_velocity_based()
+        .translation(vector![0.0, 2.0, 0.0])
+        .rotation(vector![0.0, 0.0, -0.5])
+        .angvel(vector![0.0, -1.0, 0.0]);
+    let rb_handle = rapier_data.bodies.insert(rb);
+    let co = ColliderBuilder::cuboid(0.5, 2.0, 30.0);
     rapier_data
         .colliders
         .insert_with_parent(co, rb_handle, &mut rapier_data.bodies);

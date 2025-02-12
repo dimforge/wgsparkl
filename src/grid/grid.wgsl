@@ -14,6 +14,7 @@ var<storage, read_write> nodes: array<Node>;
 var<uniform> sim_params: Params::SimulationParams;
 @group(0) @binding(5)
 var<storage, read_write> n_block_groups: DispatchIndirectArgs;
+// Per-node linked list for MPM particles.
 @group(0) @binding(6)
 var<storage, read_write> nodes_linked_lists: array<NodeLinkedListAtomic>;
 @group(0) @binding(7)
@@ -22,6 +23,9 @@ var<storage, read_write> n_g2p_p2g_groups: DispatchIndirectArgs;
 var<storage, read_write> num_collisions: array<atomic<u32>>;
 @group(0) @binding(9)
 var<storage, read_write> nodes_cdf: array<NodeCdf>;
+// Per-node linked list for rigid-body particles.
+@group(0) @binding(10)
+var<storage, read_write> nodes_rigid_linked_lists: array<NodeLinkedListAtomic>;
 
 
 struct NodeLinkedListAtomic {
@@ -369,6 +373,8 @@ fn reset(@builtin(global_invocation_id) invocation_id: vec3<u32>, @builtin(num_w
        nodes_cdf[i] = NodeCdf(0.0, 0, 0);
        nodes_linked_lists[i].head = NONE;
        nodes_linked_lists[i].len = 0u;
+       nodes_rigid_linked_lists[i].head = NONE;
+       nodes_rigid_linked_lists[i].len = 0u;
    }
 }
 
@@ -387,7 +393,7 @@ fn project_velocity(vel: Vector, n: Vector) -> Vector {
     let normal_vel = dot(vel, n);
 
     if normal_vel < 0.0 {
-        let friction = 0.9;
+        let friction = 20.0;
         let tangent_vel = vel - n * normal_vel;
         let tangent_vel_len = length(tangent_vel);
         let tangent_vel_dir = select(Vector(0.0), tangent_vel / tangent_vel_len, tangent_vel_len > 1.0e-8);

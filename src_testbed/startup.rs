@@ -111,6 +111,10 @@ fn setup_rapier_graphics(
     materials: &mut Assets<BevyMaterial>,
     to_clear: &Query<Entity, With<InstanceMaterialData>>,
 ) {
+    for rigid in rigid_render.rigid_entities.drain(..) {
+        commands.entity(rigid.entity).despawn_recursive();
+    }
+
     for (handle, collider) in physics.rapier_data.colliders.iter() {
         let parent = &physics.rapier_data.bodies[collider.parent().unwrap()];
         let color = if parent.is_fixed() {

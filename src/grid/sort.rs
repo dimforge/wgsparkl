@@ -1,6 +1,7 @@
 use crate::dim_shader_defs;
-use crate::grid::grid::WgGrid;
-use crate::solver::WgParticle;
+use crate::grid::grid::{GpuGrid, WgGrid};
+use crate::solver::{GpuRigidParticles, WgParticle};
+use wgcore::kernel::{KernelInvocationBuilder, KernelInvocationQueue};
 use wgcore::Shader;
 use wgpu::ComputePipeline;
 
@@ -17,6 +18,41 @@ pub struct WgSort {
     pub(crate) copy_particles_len_to_scan_value: ComputePipeline,
     pub(crate) copy_scan_values_to_first_particles: ComputePipeline,
     pub(crate) finalize_particles_sort: ComputePipeline,
+    pub(crate) sort_rigid_particles: ComputePipeline,
+}
+
+impl WgSort {
+    pub fn queue_sort_rigid_particles<'a>(
+        &'a self,
+        particles: &GpuRigidParticles,
+        grid: &GpuGrid,
+        queue: &mut KernelInvocationQueue<'a>,
+    ) {
+        if particles.is_empty() {
+            // No work needed.
+            return;
+        }
+
+        const GRID_WORKGROUP_SIZE: u32 = 64;
+        let n_groups = (particles.len() as u32).div_ceil(GRID_WORKGROUP_SIZE);
+        KernelInvocationBuilder::new(queue, &self.sort_rigid_particles)
+            .bind_at(
+                0,
+                [
+                    (grid.meta.buffer(), 0),
+                    (grid.hmap_entries.buffer(), 1),
+                    (grid.nodes_rigid_linked_lists.buffer(), 10),
+                ],
+            )
+            .bind_at(
+                1,
+                [
+                    (particles.sample_points.buffer(), 4),
+                    (particles.node_linked_lists.buffer(), 5),
+                ],
+            )
+            .queue(n_groups);
+    }
 }
 
 #[cfg(target_os = "macos")]
