@@ -6,7 +6,8 @@ var<storage, read_write> hmap_entries: array<GridHashMapEntry>;
 var<storage, read_write> active_blocks: array<ActiveBlockHeader>;
 @group(0) @binding(8)
 var<storage, read_write> num_collisions: array<atomic<u32>>;
-
+@group(1) @binding(6)
+var<storage, read_write> rigid_particle_needs_block: array<u32>;
 
 struct NodeLinkedListAtomic {
     head: atomic<u32>,

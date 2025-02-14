@@ -14,6 +14,11 @@ struct Volume {
     packed: mat3x4<f32>
 }
 
+struct RigidParticleIndices {
+    triangle: vec3<u32>,
+    collider: u32,
+}
+
 struct Cdf {
     // Should we pack this?
     normal: vec3<f32>,
@@ -23,12 +28,6 @@ struct Cdf {
 //    // Index to the closest collider.
 //    closest_id: u32,
 }
-
-struct RigidParticleIndices {
-    segment: vec2<u32>,
-    collider: u32,
-}
-
 
 fn default_cdf() -> Cdf {
     return Cdf(vec3(0.0), vec3(0.0), 0.0, 0);

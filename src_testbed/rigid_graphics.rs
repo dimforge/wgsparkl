@@ -4,10 +4,10 @@ use bevy::prelude::*;
 use bevy::render::mesh::{Indices, VertexAttributeValues};
 
 //use crate::objects::plane::Plane;
+use bevy::pbr::wireframe::Wireframe;
+use bevy::render::render_resource::PrimitiveTopology;
 use nalgebra::{point, Point2, Point3, Vector3};
 use std::collections::HashMap;
-
-use bevy::render::render_resource::PrimitiveTopology;
 use wgsparkl::rapier::geometry::{ColliderHandle, ColliderSet, Shape, ShapeType};
 #[cfg(feature = "dim3")]
 use wgsparkl::rapier::geometry::{Cone, Cylinder};
@@ -153,6 +153,7 @@ impl EntityWithGraphics {
                 Mesh3d(mesh),
                 // MeshMaterial3d(materials.add(Color::srgb_u8(124, 144, 255))),
                 MeshMaterial3d(material_handle.clone_weak()),
+                Wireframe,
                 transform,
             );
 

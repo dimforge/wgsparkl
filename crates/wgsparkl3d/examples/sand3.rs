@@ -15,29 +15,15 @@ use wgsparkl::{
 };
 use wgsparkl_testbed3d::{init_testbed, AppState, PhysicsContext, SceneInits};
 
-pub fn main() {
-    let mut app = App::new();
-    init_testbed(&mut app);
-    app.add_systems(
-        Startup,
-        (register_scenes, start_default_scene)
-            .chain()
-            .after(wgsparkl_testbed3d::startup::setup_app),
-    );
-    app.run();
+fn main() {
+    panic!("Run the `testbed3` example instead.");
 }
 
-fn register_scenes(world: &mut World) {
-    let scenes = vec![("sand".to_string(), world.register_system(sand_demo))];
-    let mut inits = world.resource_mut::<SceneInits>();
-    inits.scenes = scenes;
-}
-
-fn start_default_scene(mut commands: Commands, scenes: Res<SceneInits>) {
-    scenes.init_scene(&mut commands, 0);
-}
-
-fn sand_demo(mut commands: Commands, device: Res<RenderDevice>, mut app_state: ResMut<AppState>) {
+pub fn sand_demo(
+    mut commands: Commands,
+    device: Res<RenderDevice>,
+    mut app_state: ResMut<AppState>,
+) {
     let mut rapier_data = RapierData::default();
     let device = device.wgpu_device();
 

@@ -14,6 +14,9 @@ use wgpu::ComputePipeline;
 pub struct WgSort {
     #[cfg(not(target_os = "macos"))]
     pub(crate) touch_particle_blocks: ComputePipeline,
+    #[cfg(not(target_os = "macos"))]
+    pub(crate) touch_rigid_particle_blocks: ComputePipeline,
+    pub(crate) mark_rigid_particles_needing_block: ComputePipeline,
     pub(crate) update_block_particle_count: ComputePipeline,
     pub(crate) copy_particles_len_to_scan_value: ComputePipeline,
     pub(crate) copy_scan_values_to_first_particles: ComputePipeline,
@@ -58,6 +61,7 @@ impl WgSort {
 #[cfg(target_os = "macos")]
 pub struct TouchParticleBlocks {
     pub(crate) touch_particle_blocks: ComputePipeline,
+    pub(crate) touch_rigid_particle_blocks: ComputePipeline,
 }
 
 #[cfg(target_os = "macos")]
@@ -76,8 +80,18 @@ impl TouchParticleBlocks {
             compilation_options: Default::default(),
             cache: None,
         });
+        let rigid_compute_pipeline =
+            device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: None,
+                layout: None,
+                module: &cs_module,
+                entry_point: Some("touch_rigid_particle_blocks"),
+                compilation_options: Default::default(),
+                cache: None,
+            });
         Self {
             touch_particle_blocks: compute_pipeline,
+            touch_rigid_particle_blocks: rigid_compute_pipeline,
         }
     }
 }

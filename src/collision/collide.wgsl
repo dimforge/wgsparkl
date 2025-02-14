@@ -37,7 +37,7 @@ fn collide(cell_width: f32, point: Vector) -> Grid::NodeCdf {
         let shape = collision_shapes[i];
         let shape_pose = collision_shape_poses[i];
         let shape_type = Shape::shape_type(shape);
-        if shape_type != Shape::SHAPE_TYPE_POLYLINE {
+        if shape_type != Shape::SHAPE_TYPE_POLYLINE && shape_type != Shape::SHAPE_TYPE_TRIMESH {
             let proj = Shape::projectPointOnBoundary(shape, shape_pose, point);
             let dpt = proj.point - point;
 

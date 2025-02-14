@@ -23,6 +23,7 @@ pub mod ui;
 
 use bevy::asset::load_internal_asset;
 use bevy::ecs::system::SystemId;
+use bevy::pbr::wireframe::WireframePlugin;
 use bevy::prelude::*;
 use bevy_editor_cam::prelude::DefaultEditorCamPlugins;
 // use bevy_wasm_window_resize::WindowResizePlugin;
@@ -51,6 +52,7 @@ pub fn init_testbed(app: &mut App) {
             // bevy_mod_picking::DefaultPickingPlugins,
             DefaultEditorCamPlugins,
         ))
+        .add_plugins(WireframePlugin)
         .add_plugins(instancing::ParticlesMaterialPlugin)
         .add_plugins(bevy_egui::EguiPlugin)
         .init_resource::<SceneInits>()

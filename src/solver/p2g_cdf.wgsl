@@ -1,10 +1,10 @@
 #define_import_path wgsparkl::solver::p2g
 
-//#if DIM == 2
+#if DIM == 2
     #import wgparry::segment as Shape;
-//#else
-//    #import wgparry::triangle as Shape;
-//#endif
+#else
+    #import wgparry::triangle as Shape;
+#endif
 
 #import wgsparkl::solver::params as Params;
 #import wgsparkl::solver::particle as Particle;
@@ -136,10 +136,11 @@ fn p2g_step(packed_cell_index_in_block: u32, cell_width: f32, cell_pos: Vector) 
 
         let primitive = shared_primitives[nbh_shared_index];
 
-        // Project the cell on the primitives.
-        let proj = Shape::projectLocalPoint(primitive, cell_pos);
-
 #if DIM == 2
+        /*
+         * Project on Segment
+         */
+        let proj = Shape::projectLocalPoint(primitive, cell_pos);
         if any(proj != primitive.a) && any(proj != primitive.b) {
             // This is a valid projection.
             let dpt = cell_pos - proj;
@@ -153,6 +154,36 @@ fn p2g_step(packed_cell_index_in_block: u32, cell_width: f32, cell_pos: Vector) 
                 result.distance = min(result.distance, distance);
                 result.closest_id = collider_id;
             }
+        }
+#else
+        /*
+         * Project on Triangle
+         */
+        let ap = cell_pos - primitive.a;
+        let bp = cell_pos - primitive.b;
+        let cp = cell_pos - primitive.c;
+        let ab = primitive.b - primitive.a;
+        let ac = primitive.c - primitive.a;
+        let bc = primitive.c - primitive.b;
+        let n = cross(ab, ac);
+        let n_length = length(n);
+
+        if n_length != 0.0
+            && dot(cross(ab, n), ap) <= 0.0
+            && dot(cross(bc, n), bp) <= 0.0
+            && dot(cross(ac, n), cp) >= 0.0 // Positive sign due to calculating with `ac` instead of `ca`.
+         {
+             // This is a valid projection on the face interior.
+             let signed_dist = dot(n, ap) / n_length;
+             let sign = signed_dist < 0.0;
+             let distance = abs(signed_dist);
+             result.affinities |= (1u << collider_id)
+                 | (u32(sign) << (collider_id + Grid::SIGN_BITS_SHIFT));
+
+             if distance < result.distance {
+                 result.distance = min(result.distance, distance);
+                 result.closest_id = collider_id;
+             }
         }
 #endif
     }
@@ -288,10 +319,19 @@ fn fetch_next_particle(tid: vec3<u32>) {
                 if curr_particle_id != Grid::NONE {
                     let rigid_idx = rigid_particle_indices[curr_particle_id];
                     shared_collider_ids[shared_flat_index] = rigid_idx.collider;
+
+#if DIM == 2
                     shared_primitives[shared_flat_index] = Shape::Segment(
                         collider_vertices[rigid_idx.segment.x],
                         collider_vertices[rigid_idx.segment.y]
                     );
+#else
+                    shared_primitives[shared_flat_index] = Shape::Triangle(
+                        collider_vertices[rigid_idx.triangle.x],
+                        collider_vertices[rigid_idx.triangle.y],
+                        collider_vertices[rigid_idx.triangle.z]
+                    );
+#endif
 
                     let next_particle_id = particle_node_linked_lists[curr_particle_id];
                     (*shared_node).particle_id = next_particle_id;

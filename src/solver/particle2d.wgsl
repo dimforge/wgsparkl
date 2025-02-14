@@ -14,6 +14,11 @@ struct Volume {
     mass: f32,
 }
 
+struct RigidParticleIndices {
+    segment: vec2<u32>,
+    collider: u32,
+}
+
 struct Cdf {
     // Should we pack this?
     normal: vec2<f32>,
@@ -22,11 +27,6 @@ struct Cdf {
     affinity: u32,
 //    // Index to the closest collider.
 //    closest_id: u32,
-}
-
-struct RigidParticleIndices {
-    segment: vec2<u32>,
-    collider: u32,
 }
 
 fn default_cdf() -> Cdf {

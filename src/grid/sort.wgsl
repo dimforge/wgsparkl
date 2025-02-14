@@ -16,10 +16,12 @@ var<storage, read_write> particle_node_linked_lists: array<u32>;
 var<storage, read> rigid_particles_pos: array<Particle::Position>;
 @group(1) @binding(5)
 var<storage, read_write> rigid_particle_node_linked_lists: array<u32>;
+@group(1) @binding(6)
+var<storage, read_write> rigid_particle_needs_block: array<atomic<u32>>;
 
 // Disable this kernel on macos because of the underlying compareExchangeMap which is
 // not working well with naga-oil. This is why we currently have the flattened
-// toouch_particle_block2/3d.wgsl shaders as a workaround currently.
+// touch_particle_block2/3d.wgsl shaders as a workaround currently.
 #if MACOS == 0
 @compute @workgroup_size(Grid::GRID_WORKGROUP_SIZE, 1, 1)
 fn touch_particle_blocks(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
@@ -33,6 +35,39 @@ fn touch_particle_blocks(@builtin(global_invocation_id) invocation_id: vec3<u32>
     }
 }
 #endif
+
+@compute @workgroup_size(Grid::GRID_WORKGROUP_SIZE, 1, 1)
+fn mark_rigid_particles_needing_block(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
+    let id = invocation_id.x;
+    if id < arrayLength(&particles_pos) {
+        let particle = particles_pos[id];
+        // PERF: we should look at the local cell coordinates of the point
+        //       in the block and only touch adjacent blocks if the
+        //       cell coordinate along the corresponding dimension is 1
+        //       or 2. Because particles at cells 0 or 1 won’t contribute
+        //       to neighbor cells.
+        var blocks = Grid::blocks_associated_to_point(particle.pt);
+        var i = 0u;
+
+        for (; i < Grid::NUM_ASSOC_BLOCKS; i += 1u) {
+            if Grid::find_block_header_id(blocks[i]).id != Grid::NONE {
+                break;
+            }
+        }
+
+
+        let entry_id = id / 32u;
+        let entry_bit = 1u << (id % 32u);
+
+        // PERF: this should be a workgroup reduction instead of
+        //       global-memory atomics.
+        if i > 0u && i < Grid::NUM_ASSOC_BLOCKS {
+            atomicOr(&rigid_particle_needs_block[entry_id], entry_bit);
+        } else {
+            atomicAnd(&rigid_particle_needs_block[entry_id], ~entry_bit);
+        }
+    }
+}
 
 // TODO: can this kernel be combined with touch_particle_blocks?
 @compute @workgroup_size(Grid::GRID_WORKGROUP_SIZE, 1, 1)

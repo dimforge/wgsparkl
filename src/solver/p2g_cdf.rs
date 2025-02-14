@@ -3,19 +3,19 @@ use crate::grid::grid::{GpuGrid, WgGrid};
 use crate::grid::kernel::WgKernel;
 use crate::models::WgLinearElasticity;
 use crate::solver::params::WgParams;
-use crate::solver::particle2d::GpuRigidParticles;
-use crate::solver::{GpuImpulses, GpuParticles};
+use crate::solver::{GpuImpulses, GpuParticles, GpuRigidParticles};
 use crate::solver::{WgParticle, WgRigidImpulses};
 use crate::substitute_aliases;
 use wgcore::kernel::{KernelInvocationBuilder, KernelInvocationQueue};
 use wgcore::Shader;
 use wgparry::segment::WgSegment;
+use wgparry::triangle::WgTriangle;
 use wgpu::ComputePipeline;
 use wgrapier::dynamics::{GpuBodySet, WgBody};
 
 #[derive(Shader)]
 #[shader(
-    derive(WgParams, WgParticle, WgKernel, WgGrid, WgBody, WgSegment),
+    derive(WgParams, WgParticle, WgKernel, WgGrid, WgBody, WgSegment, WgTriangle),
     src = "p2g_cdf.wgsl",
     src_fn = "substitute_aliases",
     shader_defs = "dim_shader_defs"

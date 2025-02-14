@@ -4,6 +4,7 @@ use crate::solver::ParticlePhase;
 use encase::ShaderType;
 use nalgebra::{vector, Matrix2, Point2, Vector2};
 use rapier::geometry::{ColliderSet, Polyline, Segment};
+use std::ops::Div;
 use wgcore::tensor::GpuVector;
 use wgcore::Shader;
 use wgpu::{BufferUsages, Device};
@@ -54,6 +55,7 @@ pub struct Particle {
 
 pub struct GpuRigidParticles {
     pub sample_points: GpuVector<Point2<f32>>,
+    pub rigid_particle_needs_block: GpuVector<u32>,
     pub node_linked_lists: GpuVector<u32>,
     pub sample_ids: GpuVector<GpuSampleIds>,
 }
@@ -96,6 +98,13 @@ impl GpuRigidParticles {
             sample_ids: GpuVector::encase(
                 device,
                 &sampling_buffers.samples_ids,
+                BufferUsages::STORAGE,
+            ),
+            // NOTE: this is a packed bitmask so each u32 contains
+            //       the flag for 32 particles.
+            rigid_particle_needs_block: GpuVector::uninit(
+                device,
+                sampling_buffers.samples.len().div_ceil(32) as u32,
                 BufferUsages::STORAGE,
             ),
         }
@@ -176,7 +185,7 @@ struct SamplingBuffers {
     samples_ids: Vec<GpuSampleIds>,
 }
 
-// TODO: move this elsewhere
+// TODO: move this elsewhere?
 fn sample_polyline(polyline: &Polyline, params: &SamplingParams, buffers: &mut SamplingBuffers) {
     for seg_idx in polyline.indices() {
         let seg = Segment::new(

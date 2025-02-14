@@ -16,6 +16,10 @@ use wgsparkl::{
 };
 use wgsparkl_testbed2d::{init_testbed, AppState, PhysicsContext, SceneInits};
 
+fn main() {
+    panic!("Run the `testbed3` example instead.");
+}
+
 pub fn elastic_demo(
     mut commands: Commands,
     device: Res<RenderDevice>,

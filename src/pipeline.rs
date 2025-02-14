@@ -160,6 +160,7 @@ impl MpmPipeline {
         queue.compute_pass("grid sort", add_timestamps);
         self.grid.queue_sort(
             &data.particles,
+            &data.rigid_particles,
             &data.grid,
             &mut data.prefix_sum,
             &self.sort,
