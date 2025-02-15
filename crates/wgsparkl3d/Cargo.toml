@@ -23,10 +23,12 @@ naga_oil = { workspace = true }
 bytemuck = { workspace = true }
 encase = { workspace = true }
 
-wgcore = { version = "0.2", path = "../../../wgmath/crates/wgcore" }
-wgebra = { version = "0.2", path = "../../../wgmath/crates/wgebra" }
-wgparry3d = { version = "0.2", path = "../../../wgmath/crates/wgparry/crates/wgparry3d" }
-wgrapier3d = { version = "0.2", path = "../../../wgmath/crates/wgrapier/crates/wgrapier3d" }
+serde = "1"
+ron = "0.8.1"
+wgcore = "0.2"
+wgebra = "0.2"
+wgparry3d = "0.2"
+wgrapier3d = "0.2"
 
 # TODO: make rapier optional?
 rapier3d = "0.23"

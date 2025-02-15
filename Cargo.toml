@@ -26,6 +26,12 @@ rust.unexpected_cfgs = { level = "warn", check-cfg = [
 parry2d = { path = "../parry/crates/parry2d" }
 parry3d = { path = "../parry/crates/parry3d" }
 encase = { path = "../encase" }
+wgcore = { path = "../wgmath/crates/wgcore" }
+wgebra = { path = "../wgmath/crates/wgebra" }
+wgparry2d = { path = "../wgmath/crates/wgparry/crates/wgparry2d" }
+wgparry3d = { path = "../wgmath/crates/wgparry/crates/wgparry3d" }
+wgrapier2d = { path = "../wgmath/crates/wgrapier/crates/wgrapier2d" }
+wgrapier3d = { path = "../wgmath/crates/wgrapier/crates/wgrapier3d" }
 
 [profile.release]
 opt-level = 'z'
