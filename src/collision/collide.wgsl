@@ -22,7 +22,7 @@ var<storage, read> collision_shape_poses: array<Transform>;
 
 fn collide(cell_width: f32, point: Vector) -> Grid::NodeCdf {
     const MAX_FLT: f32 = 1.0e10; // Is the f32::MAX constant defined somewhere in WGSL?
-    var cdf = Grid::NodeCdf(MAX_FLT, 0u, 0u);
+    var cdf = Grid::NodeCdf(MAX_FLT, 0u, Grid::NONE);
 
 #if DIM == 2
     let dist_cap = vec2(cell_width * 1.5);

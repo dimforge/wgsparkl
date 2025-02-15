@@ -2,13 +2,14 @@ use crate::dim_shader_defs;
 use crate::models::{DruckerPrager, ElasticCoefficients};
 use crate::solver::ParticlePhase;
 use encase::ShaderType;
-use nalgebra::{vector, Matrix4, Matrix4x3, Point3, Vector3, Vector4};
+use nalgebra::{vector, Isometry3, Matrix4, Matrix4x3, Point3, Vector3, Vector4};
 use rapier::geometry::{Segment, Triangle};
 use rapier::prelude::{ColliderSet, TriMesh};
 use std::collections::HashSet;
 use wgcore::tensor::GpuVector;
 use wgcore::Shader;
 use wgpu::{BufferUsages, Device};
+use wgrapier::dynamics::body::BodyCouplingEntry;
 use wgrapier::dynamics::GpuBodySet;
 
 #[derive(bytemuck::Pod, bytemuck::Zeroable, Copy, Clone, PartialEq, Debug)]
@@ -72,11 +73,13 @@ struct SamplingParams {
 
 #[derive(Default, Clone)]
 struct SamplingBuffers {
+    local_samples: Vec<Point3<f32>>,
     samples: Vec<Point3<f32>>,
     samples_ids: Vec<GpuSampleIds>,
 }
 
 pub struct GpuRigidParticles {
+    pub local_sample_points: GpuVector<Point3<f32>>,
     pub sample_points: GpuVector<Point3<f32>>,
     pub rigid_particle_needs_block: GpuVector<u32>,
     pub node_linked_lists: GpuVector<u32>,
@@ -88,14 +91,16 @@ impl GpuRigidParticles {
         device: &Device,
         colliders: &ColliderSet,
         gpu_bodies: &GpuBodySet,
+        coupling: &[BodyCouplingEntry],
         sampling_step: f32,
     ) -> Self {
         let mut sampling_buffers = SamplingBuffers::default();
-        for (collider_id, ((_, collider), gpu_data)) in colliders
+        for (collider_id, (coupling, gpu_data)) in coupling
             .iter()
             .zip(gpu_bodies.shapes_data().iter())
             .enumerate()
         {
+            let collider = &colliders[coupling.collider];
             if let Some(trimesh) = collider.shape().as_trimesh() {
                 let rngs = gpu_data.trimesh_rngs();
                 let sampling_params = SamplingParams {
@@ -104,10 +109,25 @@ impl GpuRigidParticles {
                     sampling_step,
                 };
                 sample_trimesh(trimesh, &sampling_params, &mut sampling_buffers)
+            } else if let Some(heightfield) = collider.shape().as_heightfield() {
+                let (vtx, idx) = heightfield.to_trimesh();
+                let trimesh = TriMesh::new(vtx, idx).unwrap();
+                let rngs = gpu_data.trimesh_rngs();
+                let sampling_params = SamplingParams {
+                    collider_id: collider_id as u32,
+                    base_vid: rngs[0],
+                    sampling_step,
+                };
+                sample_trimesh(&trimesh, &sampling_params, &mut sampling_buffers)
             }
         }
 
         Self {
+            local_sample_points: GpuVector::encase(
+                device,
+                &sampling_buffers.samples,
+                BufferUsages::STORAGE,
+            ),
             sample_points: GpuVector::encase(
                 device,
                 &sampling_buffers.samples,
@@ -214,6 +234,7 @@ fn sample_trimesh(trimesh: &TriMesh, params: &SamplingParams, buffers: &mut Samp
             ],
             collider: params.collider_id,
         };
+        buffers.local_samples.push(sample.point);
         buffers.samples.push(sample.point);
         buffers.samples_ids.push(sample_id);
 

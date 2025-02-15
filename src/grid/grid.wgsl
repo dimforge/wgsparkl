@@ -370,7 +370,7 @@ fn reset(@builtin(global_invocation_id) invocation_id: vec3<u32>, @builtin(num_w
        #else
        nodes[i].momentum_velocity_mass = vec4(0.0);
        #endif
-       nodes_cdf[i] = NodeCdf(0.0, 0, 0);
+       nodes_cdf[i] = NodeCdf(0.0, 0, NONE);
        nodes_linked_lists[i].head = NONE;
        nodes_linked_lists[i].len = 0u;
        nodes_rigid_linked_lists[i].head = NONE;

@@ -87,7 +87,7 @@ fn global_shared_memory_transfers(tid: vec3<u32>, active_block_vid: Grid::BlockV
                 // This octant doesn’t exist. Fill shared memory with zeros/NONE.
                 // NOTE: we don’t need to init global_id since it’s only read for the
                 //       current chunk that is guaranteed to exist, not the 2x2 adjacent ones.
-                *shared_node = Grid::NodeCdf(0.0, 0, 0);
+                *shared_node = Grid::NodeCdf(0.0, 0, Grid::NONE);
             }
         }
     }
@@ -113,7 +113,7 @@ fn global_shared_memory_transfers(tid: vec3<u32>, active_block_vid: Grid::BlockV
                     // This octant doesn’t exist. Fill shared memory with zeros/NONE.
                     // NOTE: we don’t need to init global_id since it’s only read for the
                     //       current chunk that is guaranteed to exist, not the 2x2x2 adjacent ones.
-                    *shared_node = Grid::NodeCdf(0.0, 0, 0);
+                    *shared_node = Grid::NodeCdf(0.0, 0, Grid::NONE);
                 }
             }
         }

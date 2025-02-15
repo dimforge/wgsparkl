@@ -141,6 +141,9 @@ fn setup_rapier_graphics(
     }
 }
 
+#[derive(Component)]
+pub struct RigidParticlesTag;
+
 fn setup_particles_graphics(
     commands: &mut Commands,
     device: &RenderDevice,
@@ -166,6 +169,9 @@ fn setup_particles_graphics(
         half_size: Vec3::splat(radius),
     });
 
+    /*
+     * Particles rendering.
+     */
     let mut instances = vec![];
     for (rb_id, particle) in physics.particles.iter().enumerate() {
         let base_color = colors[rb_id % colors.len()].to_linear().to_f32_array();
@@ -193,7 +199,7 @@ fn setup_particles_graphics(
 
     let num_instances = instances.len();
     commands.spawn((
-        Mesh3d(cube),
+        Mesh3d(cube.clone()),
         SpatialBundle::INHERITED_IDENTITY,
         InstanceMaterialData {
             data: instances,
@@ -204,6 +210,42 @@ fn setup_particles_graphics(
         },
         NoFrustumCulling,
     ));
+
+    /*
+     * Rigid particles rendering.
+     */
+    if !physics.data.rigid_particles.is_empty() {
+        let mut instances = vec![];
+        for id in 0..physics.data.rigid_particles.len() as usize {
+            let base_color = colors[id % colors.len()].to_linear().to_f32_array();
+            instances.push(InstanceData {
+                base_color,
+                color: base_color,
+                ..Default::default()
+            });
+        }
+
+        let instances_buffer = GpuVector::init(
+            device,
+            &instances,
+            BufferUsages::STORAGE | BufferUsages::VERTEX,
+        );
+
+        let num_instances = instances.len();
+        commands.spawn((
+            Mesh3d(cube),
+            SpatialBundle::INHERITED_IDENTITY,
+            InstanceMaterialData {
+                data: instances,
+                buffer: InstanceBuffer {
+                    buffer: Arc::new(instances_buffer.into_inner().into()),
+                    length: num_instances,
+                },
+            },
+            NoFrustumCulling,
+            RigidParticlesTag,
+        ));
+    }
 }
 
 pub fn setup_graphics(

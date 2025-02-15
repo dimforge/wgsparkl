@@ -32,9 +32,6 @@ impl WgP2GCdf {
         particles: &GpuRigidParticles,
         bodies: &GpuBodySet,
     ) {
-        if particles.is_empty() {
-            return;
-        }
         KernelInvocationBuilder::new(queue, &self.p2g_cdf)
             .bind_at(
                 0,

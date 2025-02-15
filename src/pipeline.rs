@@ -1,25 +1,25 @@
 use crate::grid::grid::{GpuGrid, WgGrid};
 use crate::grid::prefix_sum::{PrefixSumWorkspace, WgPrefixSum};
+#[cfg(target_os = "macos")]
+use crate::grid::sort::TouchParticleBlocks;
 use crate::grid::sort::WgSort;
 use crate::models::GpuModels;
 use crate::solver::{
     GpuImpulses, GpuParticles, GpuRigidParticles, GpuSimulationParams, Particle, SimulationParams,
     WgG2P, WgG2PCdf, WgGridUpdate, WgGridUpdateCdf, WgP2G, WgP2GCdf, WgParticleUpdate,
-    WgRigidImpulses,
+    WgRigidImpulses, WgRigidParticleUpdate,
 };
 use naga_oil::compose::ComposerError;
-use rapier::dynamics::RigidBodySet;
-use rapier::geometry::ColliderSet;
+use rapier::dynamics::{RigidBodyHandle, RigidBodySet};
+use rapier::geometry::{ColliderHandle, ColliderSet};
 use wgcore::hot_reloading::HotReloadState;
 use wgcore::kernel::KernelInvocationQueue;
 use wgcore::tensor::GpuVector;
 use wgcore::Shader;
 use wgparry::math::GpuSim;
 use wgpu::{BufferUsages, Device};
+use wgrapier::dynamics::body::{BodyCoupling, BodyCouplingEntry};
 use wgrapier::dynamics::{BodyDesc, GpuBodySet, WgIntegrate};
-
-#[cfg(target_os = "macos")]
-use crate::grid::sort::TouchParticleBlocks;
 
 pub struct MpmPipeline {
     grid: WgGrid,
@@ -34,6 +34,7 @@ pub struct MpmPipeline {
     particles_update: WgParticleUpdate,
     g2p: WgG2P,
     g2p_cdf: WgG2PCdf,
+    rigid_particles_update: WgRigidParticleUpdate,
     pub impulses: WgRigidImpulses,
 }
 
@@ -51,6 +52,7 @@ impl MpmPipeline {
         WgG2PCdf::watch_sources(state).unwrap(); // TODO: don’t unwrap
         WgIntegrate::watch_sources(state).unwrap(); // TODO: don’t unwrap
         WgRigidImpulses::watch_sources(state).unwrap(); // TODO: don’t unwrap
+        WgRigidParticleUpdate::watch_sources(state).unwrap(); // TODOO: don’t unwrap
     }
 
     pub fn reload_if_changed(
@@ -70,6 +72,10 @@ impl MpmPipeline {
         changed = self.g2p.reload_if_changed(device, state)? || changed;
         changed = self.g2p_cdf.reload_if_changed(device, state)? || changed;
         changed = self.impulses.reload_if_changed(device, state)? || changed;
+        changed = self
+            .rigid_particles_update
+            .reload_if_changed(device, state)?
+            || changed;
 
         Ok(changed)
     }
@@ -84,12 +90,13 @@ pub struct MpmData {
     pub sim_params: GpuSimulationParams,
     pub grid: GpuGrid,
     pub particles: GpuParticles, // TODO: keep private?
-    rigid_particles: GpuRigidParticles,
+    pub rigid_particles: GpuRigidParticles,
     pub bodies: GpuBodySet,
     pub impulses: GpuImpulses,
     pub poses_staging: GpuVector<GpuSim>,
     prefix_sum: PrefixSumWorkspace,
     models: GpuModels,
+    coupling: Vec<BodyCouplingEntry>,
 }
 
 impl MpmData {
@@ -102,13 +109,46 @@ impl MpmData {
         cell_width: f32,
         grid_capacity: u32,
     ) -> Self {
+        let coupling: Vec<_> = colliders
+            .iter()
+            .filter_map(|(co_handle, co)| {
+                let rb_handle = co.parent()?;
+                Some(BodyCouplingEntry {
+                    body: rb_handle,
+                    collider: co_handle,
+                    mode: BodyCoupling::TwoWays,
+                })
+            })
+            .collect();
+        Self::with_select_coupling(
+            device,
+            params,
+            particles,
+            bodies,
+            colliders,
+            coupling,
+            cell_width,
+            grid_capacity,
+        )
+    }
+
+    pub fn with_select_coupling(
+        device: &Device,
+        params: SimulationParams,
+        particles: &[Particle],
+        bodies: &RigidBodySet,
+        colliders: &ColliderSet,
+        coupling: Vec<BodyCouplingEntry>,
+        cell_width: f32,
+        grid_capacity: u32,
+    ) -> Self {
         let sampling_step = cell_width; // TODO: * 1.5 ?
-        let bodies = GpuBodySet::from_rapier(device, bodies, colliders);
+        let bodies = GpuBodySet::from_rapier(device, bodies, colliders, &coupling);
         let sim_params = GpuSimulationParams::new(device, params);
         let models = GpuModels::from_particles(device, particles);
         let particles = GpuParticles::from_particles(device, particles);
         let rigid_particles =
-            GpuRigidParticles::from_rapier(device, colliders, &bodies, sampling_step);
+            GpuRigidParticles::from_rapier(device, colliders, &bodies, &coupling, sampling_step);
         let grid = GpuGrid::with_capacity(device, grid_capacity, cell_width);
         let prefix_sum = PrefixSumWorkspace::with_capacity(device, grid_capacity);
         let impulses = GpuImpulses::new(device);
@@ -128,7 +168,12 @@ impl MpmData {
             prefix_sum,
             models,
             poses_staging,
+            coupling,
         }
+    }
+
+    pub fn coupling(&self) -> &[BodyCouplingEntry] {
+        &self.coupling
     }
 }
 
@@ -143,6 +188,7 @@ impl MpmPipeline {
             grid_update: WgGridUpdate::from_device(device)?,
             grid_update_cdf: WgGridUpdateCdf::from_device(device)?,
             particles_update: WgParticleUpdate::from_device(device)?,
+            rigid_particles_update: WgRigidParticleUpdate::from_device(device)?,
             g2p: WgG2P::from_device(device)?,
             g2p_cdf: WgG2PCdf::from_device(device)?,
             #[cfg(target_os = "macos")]
@@ -157,6 +203,9 @@ impl MpmPipeline {
         queue: &mut KernelInvocationQueue<'a>,
         add_timestamps: bool,
     ) {
+        self.rigid_particles_update
+            .queue(queue, &data.bodies, &data.rigid_particles);
+
         queue.compute_pass("grid sort", add_timestamps);
         self.grid.queue_sort(
             &data.particles,

@@ -5,8 +5,8 @@ use wgebra::WgSvd2;
 use wgebra::WgSvd3;
 use wgpu::{Buffer, BufferUsages, ComputePipeline, Device};
 use wgsparkl::grid::grid::{GpuGrid, WgGrid};
-use wgsparkl::solver::WgParticle;
 use wgsparkl::solver::{GpuParticles, GpuSimulationParams};
+use wgsparkl::solver::{GpuRigidParticles, WgParticle};
 
 pub enum RenderMode {
     Default = 0,
@@ -76,6 +76,7 @@ impl GpuRenderConfig {
 #[cfg_attr(feature = "dim3", shader(src = "prep_vertex_buffer3d.wgsl"))]
 pub struct WgPrepVertexBuffer {
     main: ComputePipeline,
+    main_rigid_particles: ComputePipeline,
 }
 
 impl WgPrepVertexBuffer {
@@ -84,9 +85,11 @@ impl WgPrepVertexBuffer {
         queue: &mut KernelInvocationQueue<'a>,
         config: &GpuRenderConfig,
         particles: &GpuParticles,
+        rigid_particles: &GpuRigidParticles,
         grid: &GpuGrid,
         params: &GpuSimulationParams,
         vertex_buffer: &Buffer,
+        vertex_buffer_rigid_particles: Option<&Buffer>,
     ) {
         KernelInvocationBuilder::new(queue, &self.main)
             .bind0([
@@ -100,5 +103,11 @@ impl WgPrepVertexBuffer {
                 config.buffer.buffer(),
             ])
             .queue(particles.positions.len().div_ceil(64) as u32);
+
+        if let Some(vertex_buffer) = vertex_buffer_rigid_particles {
+            KernelInvocationBuilder::new(queue, &self.main_rigid_particles)
+                .bind0([vertex_buffer, rigid_particles.sample_points.buffer()])
+                .queue(rigid_particles.sample_points.len().div_ceil(64) as u32);
+        }
     }
 }

@@ -1,4 +1,5 @@
 use crate::instancing::InstanceMaterialData;
+use crate::startup::RigidParticlesTag;
 use crate::{AppState, PhysicsContext, RunState, Timestamps};
 use async_channel::{Receiver, Sender};
 use bevy::prelude::*;
@@ -26,7 +27,8 @@ pub fn step_simulation(
     render_queue: Res<RenderQueue>,
     mut physics: ResMut<PhysicsContext>,
     mut app_state: ResMut<AppState>,
-    particles: Query<&InstanceMaterialData>,
+    particles: Query<&InstanceMaterialData, Without<RigidParticlesTag>>,
+    rigid_particles: Query<&InstanceMaterialData, With<RigidParticlesTag>>,
     timings_channel: Res<TimestampChannel>,
 ) {
     // for _ in 0..10 {
@@ -37,6 +39,7 @@ pub fn step_simulation(
         &mut physics,
         &mut app_state,
         &particles,
+        &rigid_particles,
         &timings_channel,
     )
     // }
@@ -48,7 +51,8 @@ pub fn step_simulation_legacy(
     render_queue: &RenderQueue,
     mut physics: &mut PhysicsContext,
     mut app_state: &mut AppState,
-    particles: &Query<&InstanceMaterialData>,
+    particles: &Query<&InstanceMaterialData, Without<RigidParticlesTag>>,
+    rigid_particles: &Query<&InstanceMaterialData, With<RigidParticlesTag>>,
     timings_channel: &TimestampChannel,
 ) {
     if app_state.run_state == RunState::Paused {
@@ -73,16 +77,18 @@ pub fn step_simulation_legacy(
     // Send updated bodies information to the gpu.
     // PERF: don’t reallocate the buffers at each step.
     let poses_data: Vec<GpuSim> = physics
-        .rapier_data
-        .colliders
+        .data
+        .coupling()
         .iter()
-        .map(|(_, c)| {
+        .map(|coupling| {
+            let c = &physics.rapier_data.colliders[coupling.collider];
             #[cfg(feature = "dim2")]
             return (*c.position()).into();
             #[cfg(feature = "dim3")]
             return GpuSim::from_isometry(*c.position(), 1.0);
         })
         .collect();
+    println!("poses: {:?}", poses_data);
     compute_queue.write_buffer(
         physics.data.bodies.poses().buffer(),
         0,
@@ -92,21 +98,20 @@ pub fn step_simulation_legacy(
     let divisor = 1.0; // app_state.num_substeps as f32;
     let gravity = Vector::y() * -9.81;
     let vels_data: Vec<_> = physics
-        .rapier_data
-        .colliders
+        .data
+        .coupling()
         .iter()
-        .map(|(_, c)| {
-            c.parent()
-                .and_then(|rb| physics.rapier_data.bodies.get(rb))
-                .map(|rb| GpuVelocity {
-                    linear: *rb.linvel()
-                        + gravity * physics.rapier_data.params.dt * (rb.is_dynamic() as u32 as f32)
-                            / (app_state.num_substeps as f32),
-                    angular: rb.angvel().clone(),
-                })
-                .unwrap_or_default()
+        .map(|coupling| {
+            let rb = &physics.rapier_data.bodies[coupling.body];
+            GpuVelocity {
+                linear: *rb.linvel()
+                    + gravity * physics.rapier_data.params.dt * (rb.is_dynamic() as u32 as f32)
+                        / (app_state.num_substeps as f32),
+                angular: rb.angvel().clone(),
+            }
         })
         .collect();
+
     let mut vels_bytes = vec![];
     let mut buffer = StorageBuffer::new(&mut vels_bytes);
     buffer.write(&vels_data).unwrap();
@@ -145,9 +150,14 @@ pub fn step_simulation_legacy(
             &mut queue,
             &app_state.gpu_render_config,
             &physics.data.particles,
+            &physics.data.rigid_particles,
             &physics.data.grid,
             &physics.data.sim_params,
             &instances_buffer.buffer.buffer,
+            rigid_particles
+                .get_single()
+                .ok()
+                .map(|b| &**b.buffer.buffer),
         );
         queue.encode(&mut encoder, timings.timestamps.as_mut());
     }
@@ -159,7 +169,8 @@ pub fn step_simulation_legacy(
 
     // println!("Impulses: {:?}", new_poses[8]);
 
-    for (i, (_, rb)) in physics.rapier_data.bodies.iter_mut().enumerate() {
+    for (i, coupling) in physics.data.coupling().iter().enumerate() {
+        let rb = &mut physics.rapier_data.bodies[coupling.body];
         if rb.is_dynamic() {
             let vel_before = *rb.linvel();
             let interpolator = RigidBodyPosition {

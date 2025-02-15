@@ -101,7 +101,7 @@ fn global_shared_memory_transfers(tid: vec3<u32>, active_block_vid: Grid::BlockV
                 // NOTE: we don’t need to init global_id since it’s only read for the
                 //       current chunk that is guaranteed to exist, not the 2x2 adjacent ones.
                 shared_nodes[flat_shared_index] = Grid::Node(vec3(0.0));
-                shared_nodes_cdf[flat_shared_index] = Grid::NodeCdf(0.0, 0, 0);
+                shared_nodes_cdf[flat_shared_index] = Grid::NodeCdf(0.0, 0, Grid::NONE);
             }
         }
     }
@@ -129,7 +129,7 @@ fn global_shared_memory_transfers(tid: vec3<u32>, active_block_vid: Grid::BlockV
                     // NOTE: we don’t need to init global_id since it’s only read for the
                     //       current chunk that is guaranteed to exist, not the 2x2x2 adjacent ones.
                     shared_nodes[flat_shared_index] = Grid::Node(vec4(0.0));
-                    shared_nodes_cdf[flat_shared_index] = Grid::NodeCdf(0.0, 0, 0);
+                    shared_nodes_cdf[flat_shared_index] = Grid::NodeCdf(0.0, 0, Grid::NONE);
                 }
             }
         }
@@ -187,19 +187,36 @@ fn particle_g2p(particle_id: u32, cell_width: f32, dt: f32) {
             let dpt = ref_elt_pos_minus_particle_pos + vec3<f32>(shift) * cell_width;
 #endif
 
-            let body_vel = body_vels[cell_cdf.closest_id]; // TODO: invalid if there is no body.
-            let body_com = body_mprops[cell_cdf.closest_id].com;
-            let cell_center = dpt + particle_pos.pt;
-            let body_pt_vel =  Body::velocity_at_point(body_com, body_vel, cell_center);
-            let particle_ghost_vel = body_pt_vel + Grid::project_velocity(particle_vel - body_pt_vel, particle_cdf.normal);
+            var cpic_cell_data = cell_data;
+
+            if !is_compatible {
+                if cell_cdf.closest_id != Grid::NONE {
+                    let body_vel = body_vels[cell_cdf.closest_id]; // TODO: invalid if there is no body.
+                    let body_com = body_mprops[cell_cdf.closest_id].com;
+                    let cell_center = dpt + particle_pos.pt;
+                    let body_pt_vel =  Body::velocity_at_point(body_com, body_vel, cell_center);
+                    let particle_ghost_vel = body_pt_vel + Grid::project_velocity(particle_vel - body_pt_vel, particle_cdf.normal);
 
 #if DIM == 2
-            let cpic_cell_data = select(vec3(particle_ghost_vel, cell_data.z), cell_data, is_compatible);
+                    cpic_cell_data = vec3(particle_ghost_vel, cell_data.z);
+#else
+                    cpic_cell_data = vec4(particle_ghost_vel, cell_data.w);
+#endif
+                } else {
+                    // If there is no adjacent collider, the ghost vel is the particle vel.
+#if DIM == 2
+                    cpic_cell_data = vec3(particle_vel, cell_data.z);
+#else
+                    cpic_cell_data = vec4(particle_vel, cell_data.w);
+#endif
+                }
+            }
+
+#if DIM == 2
             let weight = w.x[shift.x] * w.y[shift.y];
             momentum_velocity_mass += cpic_cell_data * weight;
             velocity_gradient += (weight * inv_d) * outer_product(cpic_cell_data.xy, dpt);
 #else
-            let cpic_cell_data = select(vec4(particle_ghost_vel, cell_data.w), cell_data, is_compatible);
             let weight = w.x[shift.x] * w.y[shift.y] * w.z[shift.z];
             momentum_velocity_mass += cpic_cell_data * weight;
             velocity_gradient += (weight * inv_d) * outer_product(cpic_cell_data.xyz, dpt);

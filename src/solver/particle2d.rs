@@ -8,6 +8,7 @@ use std::ops::Div;
 use wgcore::tensor::GpuVector;
 use wgcore::Shader;
 use wgpu::{BufferUsages, Device};
+use wgrapier::dynamics::body::BodyCouplingEntry;
 use wgrapier::dynamics::GpuBodySet;
 
 #[derive(Copy, Clone, PartialEq, Debug, ShaderType)]
@@ -65,14 +66,17 @@ impl GpuRigidParticles {
         device: &Device,
         colliders: &ColliderSet,
         gpu_bodies: &GpuBodySet,
+        coupling: &[BodyCouplingEntry],
         sampling_step: f32,
     ) -> Self {
         let mut sampling_buffers = SamplingBuffers::default();
-        for (collider_id, ((_, collider), gpu_data)) in colliders
+
+        for (collider_id, (coupling, gpu_data)) in coupling
             .iter()
             .zip(gpu_bodies.shapes_data().iter())
             .enumerate()
         {
+            let collider = &colliders[coupling.collider];
             if let Some(polyline) = collider.shape().as_polyline() {
                 let rngs = gpu_data.polyline_rngs();
                 let sampling_params = SamplingParams {

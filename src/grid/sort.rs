@@ -31,11 +31,6 @@ impl WgSort {
         grid: &GpuGrid,
         queue: &mut KernelInvocationQueue<'a>,
     ) {
-        if particles.is_empty() {
-            // No work needed.
-            return;
-        }
-
         const GRID_WORKGROUP_SIZE: u32 = 64;
         let n_groups = (particles.len() as u32).div_ceil(GRID_WORKGROUP_SIZE);
         KernelInvocationBuilder::new(queue, &self.sort_rigid_particles)

@@ -85,7 +85,6 @@ fn p2g_cdf(
     // TODO: we store the global_id in shared memory for convenience. Should we just recompute it instead?
     let global_id = shared_nodes[packed_cell_index_in_block].global_id;
     let node_affinities = Grid::nodes_cdf[global_id].affinities;
-    let closest_body = Grid::nodes_cdf[global_id].closest_id;
     var node_cdf = Grid::nodes_cdf[global_id];
 
     // NOTE: read the linked list with workgroupUniformLoad so that is is considered
@@ -102,7 +101,7 @@ fn p2g_cdf(
 
             if partial_result.distance < node_cdf.distance {
                 node_cdf.distance = partial_result.distance;
-                node_cdf.closest_id = node_cdf.closest_id;
+                node_cdf.closest_id = partial_result.closest_id;
             }
         }
     }

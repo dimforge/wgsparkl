@@ -76,11 +76,7 @@ impl WgGrid {
             // other blocks. This is done in two passes:
             // 1. Mark all rigid particles that need to ensure it’s associated block exists
             // 2. Touch the blocks with marked rigid particles.
-            if !rigid_particles.is_empty() {
-                KernelInvocationBuilder::new(
-                    queue,
-                    &sort_module.mark_rigid_particles_needing_block,
-                )
+            KernelInvocationBuilder::new(queue, &sort_module.mark_rigid_particles_needing_block)
                 .bind_at(
                     0,
                     [(grid.meta.buffer(), 0), (grid.hmap_entries.buffer(), 1)],
@@ -94,30 +90,28 @@ impl WgGrid {
                 )
                 .queue((rigid_particles.len() as u32).div_ceil(GRID_WORKGROUP_SIZE));
 
-                #[cfg(not(target_os = "macos"))]
-                let touch_rigid_particle_blocks = &sort_module.touch_rigid_particle_blocks;
-                #[cfg(target_os = "macos")]
-                let touch_rigid_particle_blocks =
-                    &touch_particle_blocks.touch_rigid_particle_blocks;
-                KernelInvocationBuilder::new(queue, &touch_rigid_particle_blocks)
-                    .bind_at(
-                        0,
-                        [
-                            (grid.meta.buffer(), 0),
-                            (grid.hmap_entries.buffer(), 1),
-                            (grid.active_blocks.buffer(), 2),
-                            (grid.debug.buffer(), 8),
-                        ],
-                    )
-                    .bind(
-                        1,
-                        [
-                            rigid_particles.sample_points.buffer(),
-                            rigid_particles.rigid_particle_needs_block.buffer(),
-                        ],
-                    )
-                    .queue((rigid_particles.len() as u32).div_ceil(GRID_WORKGROUP_SIZE));
-            }
+            #[cfg(not(target_os = "macos"))]
+            let touch_rigid_particle_blocks = &sort_module.touch_rigid_particle_blocks;
+            #[cfg(target_os = "macos")]
+            let touch_rigid_particle_blocks = &touch_particle_blocks.touch_rigid_particle_blocks;
+            KernelInvocationBuilder::new(queue, &touch_rigid_particle_blocks)
+                .bind_at(
+                    0,
+                    [
+                        (grid.meta.buffer(), 0),
+                        (grid.hmap_entries.buffer(), 1),
+                        (grid.active_blocks.buffer(), 2),
+                        (grid.debug.buffer(), 8),
+                    ],
+                )
+                .bind(
+                    1,
+                    [
+                        rigid_particles.sample_points.buffer(),
+                        rigid_particles.rigid_particle_needs_block.buffer(),
+                    ],
+                )
+                .queue((rigid_particles.len() as u32).div_ceil(GRID_WORKGROUP_SIZE));
 
             // TODO: handle grid buffer resizing
             sparse_grid_has_the_correct_size = true;

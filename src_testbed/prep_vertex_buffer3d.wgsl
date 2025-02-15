@@ -94,3 +94,21 @@ fn main(
          }
     }
 }
+
+
+@compute @workgroup_size(64, 1, 1)
+fn main_rigid_particles(
+    @builtin(global_invocation_id) tid: vec3<u32>,
+) {
+    let particle_id = tid.x;
+
+    if particle_id < arrayLength(&instances) {
+        instances[particle_id].deformation = mat3x3f(
+            0.4, 0.0, 0.0,
+            0.0, 0.4, 0.0,
+            0.0, 0.0, 0.4
+        );
+        instances[particle_id].position = particles_pos[particle_id].pt;
+        instances[particle_id].color = instances[particle_id].base_color;
+    }
+}
