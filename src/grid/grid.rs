@@ -55,7 +55,7 @@ impl WgGrid {
                 .queue(grid.cpu_meta.hmap_capacity.div_ceil(GRID_WORKGROUP_SIZE));
 
             #[cfg(not(target_os = "macos"))]
-            let touch_particle_blocks = &sort_module.touch_particle_blocks;
+            let touch_particle_blocks_pipeline = &sort_module.touch_particle_blocks;
             #[cfg(target_os = "macos")]
             let touch_particle_blocks_pipeline = &touch_particle_blocks.touch_particle_blocks;
 

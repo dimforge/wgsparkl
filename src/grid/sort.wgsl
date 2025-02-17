@@ -34,6 +34,22 @@ fn touch_particle_blocks(@builtin(global_invocation_id) invocation_id: vec3<u32>
         }
     }
 }
+
+@compute @workgroup_size(Grid::GRID_WORKGROUP_SIZE, 1, 1)
+fn touch_rigid_particle_blocks(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
+    let id = invocation_id.x;
+    if id < arrayLength(&particles_pos) {
+        let entry_id = id / 32u;
+        let entry_bit = 1u << (id % 32u);
+        let needs_block = (rigid_particle_needs_block[entry_id] & entry_bit) != 0;
+
+        if needs_block {
+            let particle = particles_pos[id];
+            var block = Grid::block_associated_to_point(particle.pt);
+            Grid::mark_block_as_active(block);
+        }
+    }
+}
 #endif
 
 @compute @workgroup_size(Grid::GRID_WORKGROUP_SIZE, 1, 1)
