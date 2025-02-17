@@ -7,7 +7,7 @@ use crate::solver::params::{GpuSimulationParams, WgParams};
 use crate::solver::GpuParticles;
 use crate::solver::WgParticle;
 use encase::ShaderType;
-use rapier::math::{AngVector, Vector};
+use rapier::math::{AngVector, Point, Vector};
 use wgcore::kernel::{KernelInvocationBuilder, KernelInvocationQueue};
 use wgcore::tensor::GpuVector;
 use wgcore::Shader;
@@ -25,11 +25,13 @@ use wgrapier::dynamics::{GpuBodySet, WgBody};
 )]
 pub struct WgRigidImpulses {
     pub update: ComputePipeline,
+    pub update_world_mass_properties: ComputePipeline,
 }
 
 #[derive(ShaderType, Copy, Clone, PartialEq, Debug, Default)]
 #[repr(C)]
 pub struct RigidImpulse {
+    pub com: Point<f32>, // For convenience, to reduce the number of bindings
     pub linear: Vector<f32>,
     pub angular: AngVector<f32>,
 }
@@ -79,6 +81,25 @@ impl WgRigidImpulses {
                 bodies.poses().buffer(),
                 sim_params.params.buffer(),
             ])
+            .queue(1);
+    }
+
+    pub fn queue_update_world_mass_properties<'a>(
+        &'a self,
+        queue: &mut KernelInvocationQueue<'a>,
+        impulses: &GpuImpulses,
+        bodies: &GpuBodySet,
+    ) {
+        KernelInvocationBuilder::new(queue, &self.update_world_mass_properties)
+            .bind_at(
+                0,
+                [
+                    (impulses.incremental_impulses.buffer(), 1),
+                    (bodies.local_mprops().buffer(), 3),
+                    (bodies.mprops().buffer(), 4),
+                    (bodies.poses().buffer(), 5),
+                ],
+            )
             .queue(1);
     }
 }

@@ -35,5 +35,5 @@ fn grid_update(
     //       collisions in teh other `_cdf` kernels.
     //       Or maybe just use some sort of flag and skip the block at the start of the kernel?
     let global_id = global_node_id.id;
-    Grid::nodes_cdf[global_id] = Collide::collide(Grid::grid.cell_width, cell_pos);
+    Grid::nodes[global_id].cdf = Collide::collide(Grid::grid.cell_width, cell_pos);
 }

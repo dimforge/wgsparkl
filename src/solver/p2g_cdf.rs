@@ -39,7 +39,7 @@ impl WgP2GCdf {
                     (grid.meta.buffer(), 0),
                     (grid.hmap_entries.buffer(), 1),
                     (grid.active_blocks.buffer(), 2),
-                    (grid.nodes_cdf.buffer(), 9),
+                    (grid.nodes.buffer(), 3),
                 ],
             )
             .bind(

@@ -46,6 +46,7 @@ pub fn setup_app(mut commands: Commands, device: Res<RenderDevice>) {
         restarting: false,
         selected_scene: 0,
         hot_reload,
+        show_rigid_particles: false,
     });
     commands.init_resource::<RenderContext>();
 
@@ -147,6 +148,7 @@ pub struct RigidParticlesTag;
 fn setup_particles_graphics(
     commands: &mut Commands,
     device: &RenderDevice,
+    app_state: &AppState,
     physics: &PhysicsContext,
     meshes: &mut Assets<Mesh>,
     to_clear: &Query<Entity, With<InstanceMaterialData>>,
@@ -232,9 +234,16 @@ fn setup_particles_graphics(
         );
 
         let num_instances = instances.len();
+        let visibility = if app_state.show_rigid_particles {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        };
+
         commands.spawn((
             Mesh3d(cube),
-            SpatialBundle::INHERITED_IDENTITY,
+            Transform::IDENTITY,
+            visibility,
             InstanceMaterialData {
                 data: instances,
                 buffer: InstanceBuffer {
@@ -250,6 +259,7 @@ fn setup_particles_graphics(
 
 pub fn setup_graphics(
     mut commands: Commands,
+    app_state: Res<AppState>,
     device: Res<RenderDevice>,
     physics: Res<PhysicsContext>,
     mut rigid_render: ResMut<RenderContext>,
@@ -257,7 +267,14 @@ pub fn setup_graphics(
     mut materials: ResMut<Assets<BevyMaterial>>,
     to_clear: Query<Entity, With<InstanceMaterialData>>,
 ) {
-    setup_particles_graphics(&mut commands, &device, &physics, &mut meshes, &to_clear);
+    setup_particles_graphics(
+        &mut commands,
+        &device,
+        &app_state,
+        &physics,
+        &mut meshes,
+        &to_clear,
+    );
     setup_rapier_graphics(
         &mut commands,
         &device,

@@ -16,13 +16,11 @@ var<storage, read> particles_dyn: array<Particle::Dynamics>;
 var<storage, read> nodes_linked_lists: array<Grid::NodeLinkedList>;
 @group(1) @binding(3)
 var<storage, read> particle_node_linked_lists: array<u32>;
-@group(1) @binding(4)
-var<storage, read_write> body_impulses: array<Impulse::IntegerImpulseAtomic>;
 
 @group(2) @binding(0)
 var<storage, read> body_vels: array<Body::Velocity>;
 @group(2) @binding(1)
-var<storage, read> body_mprops: array<Body::MassProperties>;
+var<storage, read_write> body_impulses: array<Impulse::IntegerImpulseAtomic>;
 
 
 
@@ -104,8 +102,8 @@ fn p2g(
 
     // TODO: we store the global_id in shared memory for convenience. Should we just recompute it instead?
     let global_id = shared_nodes[packed_cell_index_in_block].global_id;
-    let node_affinities = Grid::nodes_cdf[global_id].affinities;
-    let collider_id = Grid::nodes_cdf[global_id].closest_id;
+    let node_affinities = Grid::nodes[global_id].cdf.affinities;
+    let collider_id = Grid::nodes[global_id].cdf.closest_id;
     var total_result = P2GStepResult();
 
     // NOTE: read the linked list with workgroupUniformLoad so that is is considered
@@ -205,7 +203,7 @@ fn p2g_step(packed_cell_index_in_block: u32, cell_width: f32, node_affinity: u32
             if collider_id != Grid::NONE {
                 let particle_normal = shared_normals[nbh_shared_index];
                 let body_vel = body_vels[collider_id];
-                let body_com = body_mprops[collider_id].com;
+                let body_com = body_impulses[collider_id].com;
                 let cell_center = dpt + particle_pos.pt;
                 let body_pt_vel =  Body::velocity_at_point(body_com, body_vel, cell_center);
                 let particle_ghost_vel = body_pt_vel + Grid::project_velocity(particle_vel - body_pt_vel, particle_normal);

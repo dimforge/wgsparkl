@@ -27,14 +27,17 @@ const WORKGROUP_SIZE_X: u32 = 8;
 const WORKGROUP_SIZE_Y: u32 = 8;
 const WORKGROUP_SIZE_Z: u32 = 1;
 const NUM_SHARED_CELLS: u32 = 10 * 10; // block-size plus 2 from adjacent blocks: (8 + 2)^2
+
+var<workgroup> shared_nodes_vel_mass: array<vec3<f32>, NUM_SHARED_CELLS>;
 #else
 const WORKGROUP_SIZE_X: u32 = 4;
 const WORKGROUP_SIZE_Y: u32 = 4;
 const WORKGROUP_SIZE_Z: u32 = 4;
 const NUM_SHARED_CELLS: u32 = 6 * 6 * 6; // block-size plus 2 from adjacent blocks: (4 + 2)^3
+
+var<workgroup> shared_nodes_vel_mass: array<vec4<f32>, NUM_SHARED_CELLS>;
 #endif
 
-var<workgroup> shared_nodes: array<Grid::Node, NUM_SHARED_CELLS>;
 var<workgroup> shared_nodes_cdf: array<Grid::NodeCdf, NUM_SHARED_CELLS>; // PERF: we don’t need the distance field from the cdf
 
 const WORKGROUP_SIZE: u32 = WORKGROUP_SIZE_X * WORKGROUP_SIZE_Y * WORKGROUP_SIZE_Z;
@@ -85,13 +88,13 @@ fn global_shared_memory_transfers(tid: vec3<u32>, active_block_vid: Grid::BlockV
             if octant_hid.id != Grid::NONE {
                 let global_chunk_id = Grid::block_header_id_to_physical_id(octant_hid);
                 let global_node_id = Grid::node_id(global_chunk_id, tid.xy);
-                shared_nodes[flat_shared_index] = Grid::nodes[global_node_id.id];
-                shared_nodes_cdf[flat_shared_index] = Grid::nodes_cdf[global_node_id.id];
+                shared_nodes_vel_mass[flat_shared_index] = Grid::nodes[global_node_id.id].momentum_velocity_mass;
+                shared_nodes_cdf[flat_shared_index] = Grid::nodes[global_node_id.id].cdf;
             } else {
                 // This octant doesn’t exist. Fill shared memory with zeros/NONE.
                 // NOTE: we don’t need to init global_id since it’s only read for the
                 //       current chunk that is guaranteed to exist, not the 2x2 adjacent ones.
-                shared_nodes[flat_shared_index] = Grid::Node(vec3(0.0));
+                shared_nodes_vel_mass[flat_shared_index] = vec3(0.0);
                 shared_nodes_cdf[flat_shared_index] = Grid::NodeCdf(0.0, 0, Grid::NONE);
             }
         }
@@ -113,13 +116,13 @@ fn global_shared_memory_transfers(tid: vec3<u32>, active_block_vid: Grid::BlockV
                 if octant_hid.id != Grid::NONE {
                     let global_chunk_id = Grid::block_header_id_to_physical_id(octant_hid);
                     let global_node_id = Grid::node_id(global_chunk_id, tid);
-                    shared_nodes[flat_shared_index] = Grid::nodes[global_node_id.id];
-                    shared_nodes_cdf[flat_shared_index] = Grid::nodes_cdf[global_node_id.id];
+                    shared_nodes_vel_mass[flat_shared_index] = Grid::nodes[global_node_id.id].momentum_velocity_mass;
+                    shared_nodes_cdf[flat_shared_index] = Grid::nodes[global_node_id.id].cdf;
                 } else {
                     // This octant doesn’t exist. Fill shared memory with zeros/NONE.
                     // NOTE: we don’t need to init global_id since it’s only read for the
                     //       current chunk that is guaranteed to exist, not the 2x2x2 adjacent ones.
-                    shared_nodes[flat_shared_index] = Grid::Node(vec4(0.0));
+                    shared_nodes_vel_mass[flat_shared_index] = vec4(0.0);
                     shared_nodes_cdf[flat_shared_index] = Grid::NodeCdf(0.0, 0, Grid::NONE);
                 }
             }
@@ -168,7 +171,7 @@ fn particle_g2p(particle_id: u32, cell_width: f32, dt: f32) {
             let shift = NBH_SHIFTS[i];
             let packed_shift = NBH_SHIFTS_SHARED[i];
             let shared_id = packed_cell_index_in_block + packed_shift;
-            let cell_data = shared_nodes[shared_id].momentum_velocity_mass;
+            let cell_data = shared_nodes_vel_mass[shared_id];
             let cell_cdf = shared_nodes_cdf[shared_id];
             let is_compatible = Grid::affinities_are_compatible(particle_cdf.affinity, cell_cdf.affinities);
 

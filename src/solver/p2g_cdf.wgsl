@@ -84,8 +84,8 @@ fn p2g_cdf(
 
     // TODO: we store the global_id in shared memory for convenience. Should we just recompute it instead?
     let global_id = shared_nodes[packed_cell_index_in_block].global_id;
-    let node_affinities = Grid::nodes_cdf[global_id].affinities;
-    var node_cdf = Grid::nodes_cdf[global_id];
+    var node_cdf = Grid::nodes[global_id].cdf;
+    let node_affinities = node_cdf.affinities;
 
     // NOTE: read the linked list with workgroupUniformLoad so that is is considered
     //       part of a uniform execution flow (for the barriers to be valid).
@@ -107,7 +107,7 @@ fn p2g_cdf(
     }
 
     // Write the node cdf to global memory.
-    Grid::nodes_cdf[global_id] = node_cdf;
+    Grid::nodes[global_id].cdf = node_cdf;
 }
 
 fn p2g_step(packed_cell_index_in_block: u32, cell_width: f32, cell_pos: Vector) -> Grid::NodeCdf {

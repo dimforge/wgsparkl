@@ -179,7 +179,6 @@ impl WgGrid {
                     (grid.meta.buffer(), 0),
                     (grid.nodes.buffer(), 3),
                     (grid.nodes_linked_lists.buffer(), 6),
-                    (grid.nodes_cdf.buffer(), 9),
                     (grid.nodes_rigid_linked_lists.buffer(), 10),
                 ],
             )
@@ -216,10 +215,11 @@ pub struct GpuGridMetadata {
     capacity: u32,
 }
 
-#[derive(bytemuck::Pod, bytemuck::Zeroable, Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, encase::ShaderType)]
 #[repr(C)]
 pub struct GpuGridNode {
     momentum_velocity_mass: nalgebra::Vector4<f32>,
+    cdf: GpuGridNodeCdf,
 }
 
 #[derive(bytemuck::Pod, bytemuck::Zeroable, Copy, Clone, PartialEq)]
@@ -255,7 +255,7 @@ pub struct GpuActiveBlockHeader {
     num_particles: u32,
 }
 
-#[derive(bytemuck::Pod, bytemuck::Zeroable, Copy, Clone, PartialEq, Default, Debug)]
+#[derive(Copy, Clone, PartialEq, Default, Debug, encase::ShaderType)]
 #[repr(C)]
 pub struct GpuGridNodeCdf {
     pub distance: f32,
@@ -268,8 +268,6 @@ pub struct GpuGrid {
     pub meta: GpuScalar<GpuGridMetadata>,
     pub hmap_entries: GpuVector<GpuGridHashMapEntry>,
     pub nodes: GpuVector<GpuGridNode>,
-    pub nodes_cdf: GpuVector<GpuGridNodeCdf>,
-    pub nodes_cdf_staging: GpuVector<GpuGridNodeCdf>,
     pub active_blocks: GpuVector<GpuActiveBlockHeader>,
     pub scan_values: GpuVector<u32>,
     pub nodes_linked_lists: GpuVector<[u32; 2]>,
@@ -295,17 +293,8 @@ impl GpuGrid {
             BufferUsages::STORAGE | BufferUsages::COPY_SRC,
         );
         let hmap_entries = GpuVector::uninit(device, capacity, BufferUsages::STORAGE);
-        let nodes = GpuVector::uninit(device, capacity * NODES_PER_BLOCK, BufferUsages::STORAGE);
-        let nodes_cdf = GpuVector::uninit(
-            device,
-            capacity * NODES_PER_BLOCK,
-            BufferUsages::STORAGE | BufferUsages::COPY_SRC,
-        );
-        let nodes_cdf_staging = GpuVector::uninit(
-            device,
-            capacity * NODES_PER_BLOCK,
-            BufferUsages::COPY_DST | BufferUsages::MAP_READ,
-        );
+        let nodes =
+            GpuVector::uninit_encased(device, capacity * NODES_PER_BLOCK, BufferUsages::STORAGE);
         let nodes_linked_lists =
             GpuVector::uninit(device, capacity * NODES_PER_BLOCK, BufferUsages::STORAGE);
         let nodes_rigid_linked_lists =
@@ -331,8 +320,6 @@ impl GpuGrid {
             meta,
             hmap_entries,
             nodes,
-            nodes_cdf,
-            nodes_cdf_staging,
             active_blocks,
             scan_values,
             indirect_n_blocks_groups,

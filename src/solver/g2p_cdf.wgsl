@@ -82,7 +82,7 @@ fn global_shared_memory_transfers(tid: vec3<u32>, active_block_vid: Grid::BlockV
             if octant_hid.id != Grid::NONE {
                 let global_chunk_id = Grid::block_header_id_to_physical_id(octant_hid);
                 let global_node_id = Grid::node_id(global_chunk_id, tid.xy);
-                *shared_node = Grid::nodes_cdf[global_node_id.id];
+                *shared_node = Grid::nodes[global_node_id.id].cdf;
             } else {
                 // This octant doesn’t exist. Fill shared memory with zeros/NONE.
                 // NOTE: we don’t need to init global_id since it’s only read for the
@@ -108,7 +108,7 @@ fn global_shared_memory_transfers(tid: vec3<u32>, active_block_vid: Grid::BlockV
                 if octant_hid.id != Grid::NONE {
                     let global_chunk_id = Grid::block_header_id_to_physical_id(octant_hid);
                     let global_node_id = Grid::node_id(global_chunk_id, tid);
-                    *shared_node = Grid::nodes_cdf[global_node_id.id];
+                    *shared_node = Grid::nodes[global_node_id.id].cdf;
                 } else {
                     // This octant doesn’t exist. Fill shared memory with zeros/NONE.
                     // NOTE: we don’t need to init global_id since it’s only read for the

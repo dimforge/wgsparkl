@@ -98,6 +98,7 @@ pub struct AppState {
     pub restarting: bool,
     pub selected_scene: usize,
     pub hot_reload: HotReloadState,
+    pub show_rigid_particles: bool,
 }
 
 #[derive(Default)]
@@ -131,6 +132,7 @@ pub struct RenderContext {
 #[derive(Resource, Default)]
 pub struct Timestamps {
     pub timestamps: Option<GpuTimestamps>,
+    pub update_rigid_particles: f64,
     pub grid_sort: f64,
     pub grid_update_cdf: f64,
     pub p2g_cdf: f64,
@@ -144,7 +146,8 @@ pub struct Timestamps {
 
 impl Timestamps {
     pub fn total_time(&self) -> f64 {
-        self.grid_sort
+        self.update_rigid_particles
+            + self.grid_sort
             + self.grid_update_cdf
             + self.p2g_cdf
             + self.g2p_cdf

@@ -47,7 +47,6 @@ impl WgP2G {
                     (grid.hmap_entries.buffer(), 1),
                     (grid.active_blocks.buffer(), 2),
                     (grid.nodes.buffer(), 3),
-                    (grid.nodes_cdf.buffer(), 9),
                 ],
             )
             .bind(
@@ -57,10 +56,15 @@ impl WgP2G {
                     particles.dynamics.buffer(),
                     grid.nodes_linked_lists.buffer(),
                     particles.node_linked_lists.buffer(),
+                ],
+            )
+            .bind(
+                2,
+                [
+                    bodies.vels().buffer(),
                     impulses.incremental_impulses.buffer(),
                 ],
             )
-            .bind(2, [bodies.vels().buffer(), bodies.mprops().buffer()])
             .queue_indirect(grid.indirect_n_g2p_p2g_groups.clone());
     }
 }

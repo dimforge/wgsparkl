@@ -203,6 +203,10 @@ impl MpmPipeline {
         queue: &mut KernelInvocationQueue<'a>,
         add_timestamps: bool,
     ) {
+        queue.compute_pass("update rigid particles", add_timestamps);
+
+        self.impulses
+            .queue_update_world_mass_properties(queue, &data.impulses, &data.bodies);
         self.rigid_particles_update
             .queue(queue, &data.bodies, &data.rigid_particles);
 

@@ -21,8 +21,6 @@ var<storage, read_write> nodes_linked_lists: array<NodeLinkedListAtomic>;
 var<storage, read_write> n_g2p_p2g_groups: DispatchIndirectArgs;
 @group(0) @binding(8)
 var<storage, read_write> num_collisions: array<atomic<u32>>;
-@group(0) @binding(9)
-var<storage, read_write> nodes_cdf: array<NodeCdf>;
 // Per-node linked list for rigid-body particles.
 @group(0) @binding(10)
 var<storage, read_write> nodes_rigid_linked_lists: array<NodeLinkedListAtomic>;
@@ -259,11 +257,13 @@ fn affinities_are_compatible(affinity1: u32, affinity2: u32) -> bool {
 struct Node {
     /// The first three components contains either the cell’s momentum or its velocity
     /// (depending on the context). The fourth component contains the cell’s mass.
+    // TODO: we don’t really need to pack ourself, wgsl will do it automatically.
     #if DIM == 2
     momentum_velocity_mass: vec3<f32>,
     #else
     momentum_velocity_mass: vec4<f32>,
     #endif
+    cdf: NodeCdf,
 }
 
 #if DIM == 2
@@ -370,7 +370,7 @@ fn reset(@builtin(global_invocation_id) invocation_id: vec3<u32>, @builtin(num_w
        #else
        nodes[i].momentum_velocity_mass = vec4(0.0);
        #endif
-       nodes_cdf[i] = NodeCdf(0.0, 0, NONE);
+       nodes[i].cdf = NodeCdf(0.0, 0, NONE);
        nodes_linked_lists[i].head = NONE;
        nodes_linked_lists[i].len = 0u;
        nodes_rigid_linked_lists[i].head = NONE;

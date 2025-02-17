@@ -165,28 +165,34 @@ pub fn step_simulation_legacy(
     // Submit.
     compute_queue.submit(Some(encoder.finish()));
 
-    let new_poses = futures::executor::block_on(physics.data.poses_staging.read(device)).unwrap();
+    // FIXME: make the readback work on wasm too.
+    //        Currently, this means there won’t be any two-ways coupling on wasm.
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let new_poses =
+            futures::executor::block_on(physics.data.poses_staging.read(device)).unwrap();
 
-    // println!("Impulses: {:?}", new_poses[8]);
+        // println!("Impulses: {:?}", new_poses[8]);
 
-    for (i, coupling) in physics.data.coupling().iter().enumerate() {
-        let rb = &mut physics.rapier_data.bodies[coupling.body];
-        if rb.is_dynamic() {
-            let vel_before = *rb.linvel();
-            let interpolator = RigidBodyPosition {
-                position: *rb.position(),
-                #[cfg(feature = "dim2")]
-                next_position: new_poses[i].similarity.isometry,
-                #[cfg(feature = "dim3")]
-                next_position: new_poses[i].isometry,
-            };
-            let vel = interpolator.interpolate_velocity(
-                1.0 / (physics.rapier_data.params.dt / divisor),
-                &rb.mass_properties().local_mprops.local_com,
-            );
-            rb.set_linvel(vel.linvel, true);
-            rb.set_angvel(vel.angvel, true);
-            // println!("dvel: {:?}", vel.linvel - vel_before);
+        for (i, coupling) in physics.data.coupling().iter().enumerate() {
+            let rb = &mut physics.rapier_data.bodies[coupling.body];
+            if rb.is_dynamic() {
+                let vel_before = *rb.linvel();
+                let interpolator = RigidBodyPosition {
+                    position: *rb.position(),
+                    #[cfg(feature = "dim2")]
+                    next_position: new_poses[i].similarity.isometry,
+                    #[cfg(feature = "dim3")]
+                    next_position: new_poses[i].isometry,
+                };
+                let vel = interpolator.interpolate_velocity(
+                    1.0 / (physics.rapier_data.params.dt / divisor),
+                    &rb.mass_properties().local_mprops.local_com,
+                );
+                rb.set_linvel(vel.linvel, true);
+                rb.set_angvel(vel.angvel, true);
+                // println!("dvel: {:?}", vel.linvel - vel_before);
+            }
         }
     }
 
@@ -222,6 +228,7 @@ pub fn step_simulation_legacy(
 
             for i in 0..num_substeps {
                 let mut timings = [
+                    &mut new_timings.update_rigid_particles,
                     &mut new_timings.grid_sort,
                     &mut new_timings.grid_update_cdf,
                     &mut new_timings.p2g_cdf,

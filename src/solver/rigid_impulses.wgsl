@@ -10,31 +10,31 @@
     #import wgebra::sim3 as Pose;
 #endif
 
-//// NOTE: we group the rigid-body infos into a single struct
-////       so we don’t exceed bindings limit on wasm.
-//struct BodyDynamics {
-//    velocity: Body::Velocity,
-//    mprops: Body::MassProperties,
-//    impulses: IntegerImpulseAtomic,
-//}
-
 struct IntegerImpulse {
+    // HACK: we store the center of mass here to reduce the number
+    //       of bindings needed for p2g.
 #if DIM == 2
+    com: vec2<f32>,
     linear: vec2<i32>,
     angular: i32,
 #else
+    com: vec3<f32>,
     linear: vec3<i32>,
     angular: vec3<i32>,
 #endif
 }
 
 struct IntegerImpulseAtomic {
+    // HACK: we store the center of mass here to reduce the number
+    //       of bindings needed for p2g.
 #if DIM == 2
+    com: vec2<f32>,
     linear_x: atomic<i32>,
     linear_y: atomic<i32>,
     angular: atomic<i32>,
     padding: i32,
 #else
+    com: vec3<f32>,
     linear_x: atomic<i32>,
     linear_y: atomic<i32>,
     linear_z: atomic<i32>,
@@ -71,20 +71,6 @@ fn int_impulse_to_float(imp: IntegerImpulse) -> Body::Impulse {
 #endif
 }
 
-fn float_impulse_to_int(imp: Body::Impulse) -> IntegerImpulse {
-#if DIM == 2
-    return IntegerImpulse(
-        vec2(flt2int(imp.linear.x), flt2int(imp.linear.y)),
-        flt2int(imp.angular)
-    );
-#else
-    return IntegerImpulse(
-        vec3(flt2int(imp.linear.x), flt2int(imp.linear.y), flt2int(imp.linear.z)),
-        vec3(flt2int(imp.angular.x), flt2int(imp.angular.y), flt2int(imp.angular.z))
-    );
-#endif
-}
-
 @group(0) @binding(1)
 var<storage, read_write> incremental_impulses: array<IntegerImpulse>;
 @group(0) @binding(2)
@@ -116,9 +102,9 @@ fn update(
 
         // Reset the incremental impulse to zero for the next substep.
 #if DIM == 2
-        incremental_impulses[id] = IntegerImpulse(vec2(0i), 0i);
+        incremental_impulses[id] = IntegerImpulse(vec2(0.0), vec2(0i), 0i);
 #else
-        incremental_impulses[id] = IntegerImpulse(vec3(0i), vec3(0i));
+        incremental_impulses[id] = IntegerImpulse(vec3(0.0), vec3(0i), vec3(0i));
 #endif
 
         // Apply impulse and integrate
@@ -140,14 +126,25 @@ fn update(
         }
 
         var new_pose = Body::integrateVelocity(poses[id], new_vel, local_mprops[id].com, params.dt);
-        let new_mprops = Body::updateMprops(new_pose, local_mprops[id]);
 
         // Apply gravity.
         let mass_mask = Vector(mprops[id].inv_mass != Vector(0.0));
         new_vel.linear += params.gravity * mass_mask * params.dt;
 
         vels[id] = new_vel;
-        mprops[id] = new_mprops;
         poses[id] = new_pose;
+    }
+}
+
+@compute @workgroup_size(64, 1, 1)
+fn update_world_mass_properties(
+    @builtin(global_invocation_id) gid: vec3<u32>,
+) {
+    let id = gid.x;
+
+    if id < arrayLength(&mprops) {
+        let new_mprops = Body::updateMprops(poses[id], local_mprops[id]);
+        incremental_impulses[id].com = new_mprops.com;
+        mprops[id] = new_mprops;
     }
 }
