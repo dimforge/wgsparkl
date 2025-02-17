@@ -12,8 +12,9 @@ use wgsparkl::solver::ParticlePhase;
 use wgsparkl::{
     models::ElasticCoefficients,
     pipeline::MpmData,
-    solver::{Particle, ParticleMassProps, SimulationParams},
+    solver::{Particle, SimulationParams},
 };
+use wgsparkl2d::solver::ParticleDynamics;
 use wgsparkl_testbed2d::{init_testbed, AppState, PhysicsContext, SceneInits};
 
 fn main() {
@@ -38,13 +39,10 @@ pub fn elastic_demo(
                 vector![i as f32 + 0.5 + (i / 50) as f32 * 2.0, j as f32 + 0.5] * cell_width / 2.0
                     + Vector2::y() * offset_y;
             let density = 1000.0;
+            let radius = cell_width / 4.0;
             particles.push(Particle {
                 position,
-                velocity: Vector2::zeros(),
-                volume: ParticleMassProps::new(
-                    density * (cell_width / 2.0).powi(2),
-                    cell_width / 4.0,
-                ),
+                dynamics: ParticleDynamics::with_density(radius, density),
                 model: ElasticCoefficients::from_young_modulus(5_000_000.0, 0.2),
                 plasticity: None,
                 phase: Some(ParticlePhase {

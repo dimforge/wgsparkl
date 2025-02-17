@@ -12,8 +12,9 @@ use wgsparkl::solver::ParticlePhase;
 use wgsparkl::{
     models::ElasticCoefficients,
     pipeline::MpmData,
-    solver::{Particle, ParticleMassProps, SimulationParams},
+    solver::{Particle, SimulationParams},
 };
+use wgsparkl2d::solver::ParticleDynamics;
 use wgsparkl_testbed2d::{init_testbed, AppState, PhysicsContext, SceneInits};
 
 fn main() {
@@ -31,21 +32,16 @@ pub fn sand_demo(
     let offset_y = 46.0;
     // let cell_width = 0.1;
     let cell_width = 0.2;
-    let praticles_per_cell_width = 1;
     let mut particles = vec![];
     for i in 0..700 {
         for j in 0..700 {
-            let position = vector![i as f32 + 0.5, j as f32 + 0.5] * cell_width
-                / (2.0 * praticles_per_cell_width as f32)
+            let position = vector![i as f32 + 0.5, j as f32 + 0.5] * cell_width / 2.0
                 + Vector2::y() * offset_y;
             let density = 1000.0;
+            let radius = cell_width / 4.0;
             particles.push(Particle {
                 position,
-                velocity: Vector2::zeros(),
-                volume: ParticleMassProps::new(
-                    density * (cell_width / (2.0 * praticles_per_cell_width as f32)).powi(2),
-                    cell_width / (4.0 * praticles_per_cell_width as f32),
-                ),
+                dynamics: ParticleDynamics::with_density(radius, density),
                 model: ElasticCoefficients::from_young_modulus(10_000_000.0, 0.2),
                 plasticity: Some(DruckerPrager::new(10_000_000.0, 0.2)),
                 phase: None,

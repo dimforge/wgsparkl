@@ -13,25 +13,29 @@ use wgrapier::dynamics::GpuBodySet;
 
 #[derive(Copy, Clone, PartialEq, Debug, ShaderType)]
 #[repr(C)]
-pub struct ParticleMassProps {
-    def_grad: Matrix2<f32>,
-    init_volume_radius: Vector2<f32>,
-    mass: f32,
+pub struct ParticleDynamics {
+    pub velocity: Vector2<f32>,
+    pub def_grad: Matrix2<f32>,
+    pub affine: Matrix2<f32>,
+    pub cdf: Cdf,
+    pub init_volume: f32,
+    pub init_radius: f32,
+    pub mass: f32,
 }
 
-impl ParticleMassProps {
-    pub fn new(mass: f32, init_radius: f32) -> Self {
+impl ParticleDynamics {
+    pub fn with_density(radius: f32, density: f32) -> Self {
         let exponent = if cfg!(feature = "dim2") { 2 } else { 3 };
-        let init_volume = (init_radius * 2.0).powi(exponent); // NOTE: the particles are square-ish.
+        let init_volume = (radius * 2.0).powi(exponent); // NOTE: the particles are square-ish.
         Self {
+            velocity: Vector2::zeros(),
             def_grad: Matrix2::identity(),
-            init_volume_radius: Vector2::new(init_volume, init_radius),
-            mass,
+            affine: Matrix2::zeros(),
+            init_volume,
+            init_radius: radius,
+            mass: init_volume * density,
+            cdf: Cdf::default(),
         }
-    }
-
-    pub fn init_radius(&self) -> f32 {
-        self.init_volume_radius[1]
     }
 }
 
@@ -47,8 +51,7 @@ pub struct Cdf {
 #[derive(Copy, Clone, Debug)]
 pub struct Particle {
     pub position: Vector2<f32>,
-    pub velocity: Vector2<f32>,
-    pub volume: ParticleMassProps,
+    pub dynamics: ParticleDynamics,
     pub model: ElasticCoefficients,
     pub plasticity: Option<DruckerPrager>,
     pub phase: Option<ParticlePhase>,
@@ -131,11 +134,7 @@ impl GpuRigidParticles {
 
 pub struct GpuParticles {
     pub positions: GpuVector<Vector2<f32>>,
-    pub velocities: GpuVector<Vector2<f32>>,
-    pub cdf: GpuVector<Cdf>,
-    pub cdf_read: GpuVector<Cdf>,
-    pub volumes: GpuVector<ParticleMassProps>,
-    pub affines: GpuVector<Matrix2<f32>>,
+    pub dynamics: GpuVector<ParticleDynamics>,
     pub sorted_ids: GpuVector<u32>,
     pub node_linked_lists: GpuVector<u32>,
 }
@@ -147,22 +146,12 @@ impl GpuParticles {
 
     pub fn from_particles(device: &Device, particles: &[Particle]) -> Self {
         let positions: Vec<_> = particles.iter().map(|p| p.position).collect();
-        let velocities: Vec<_> = particles.iter().map(|p| p.velocity).collect();
-        let volumes: Vec<_> = particles.iter().map(|p| p.volume).collect();
-        let cdf = vec![Cdf::default(); particles.len()];
+        let dynamics: Vec<_> = particles.iter().map(|p| p.dynamics).collect();
 
         Self {
             positions: GpuVector::init(device, &positions, BufferUsages::STORAGE),
-            velocities: GpuVector::init(device, &velocities, BufferUsages::STORAGE),
-            volumes: GpuVector::encase(device, &volumes, BufferUsages::STORAGE),
+            dynamics: GpuVector::encase(device, &dynamics, BufferUsages::STORAGE),
             sorted_ids: GpuVector::uninit(device, particles.len() as u32, BufferUsages::STORAGE),
-            affines: GpuVector::uninit(device, particles.len() as u32, BufferUsages::STORAGE),
-            cdf: GpuVector::encase(device, &cdf, BufferUsages::STORAGE | BufferUsages::COPY_SRC),
-            cdf_read: GpuVector::encase(
-                device,
-                &cdf,
-                BufferUsages::COPY_DST | BufferUsages::MAP_READ,
-            ),
             node_linked_lists: GpuVector::uninit(
                 device,
                 particles.len() as u32,

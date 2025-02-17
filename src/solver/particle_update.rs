@@ -55,10 +55,7 @@ impl WgParticleUpdate {
                 1,
                 [
                     particles.positions.buffer(),
-                    particles.velocities.buffer(),
-                    particles.volumes.buffer(),
-                    particles.affines.buffer(),
-                    particles.cdf.buffer(),
+                    particles.dynamics.buffer(),
                     models.linear_elasticity.buffer(),
                     models.drucker_prager_plasticity.buffer(),
                     models.drucker_prager_plastic_state.buffer(),

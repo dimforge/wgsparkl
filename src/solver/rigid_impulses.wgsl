@@ -10,6 +10,14 @@
     #import wgebra::sim3 as Pose;
 #endif
 
+//// NOTE: we group the rigid-body infos into a single struct
+////       so we don’t exceed bindings limit on wasm.
+//struct BodyDynamics {
+//    velocity: Body::Velocity,
+//    mprops: Body::MassProperties,
+//    impulses: IntegerImpulseAtomic,
+//}
+
 struct IntegerImpulse {
 #if DIM == 2
     linear: vec2<i32>,

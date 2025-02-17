@@ -54,10 +54,7 @@ impl WgP2G {
                 1,
                 [
                     particles.positions.buffer(),
-                    particles.velocities.buffer(),
-                    particles.volumes.buffer(),
-                    particles.affines.buffer(),
-                    particles.cdf.buffer(),
+                    particles.dynamics.buffer(),
                     grid.nodes_linked_lists.buffer(),
                     particles.node_linked_lists.buffer(),
                     impulses.incremental_impulses.buffer(),

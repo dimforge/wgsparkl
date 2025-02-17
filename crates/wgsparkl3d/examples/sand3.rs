@@ -11,7 +11,7 @@ use wgsparkl::models::DruckerPrager;
 use wgsparkl::{
     models::ElasticCoefficients,
     pipeline::MpmData,
-    solver::{Particle, ParticleMassProps, ParticlePhase, SimulationParams},
+    solver::{Particle, ParticleDynamics, ParticlePhase, SimulationParams},
 };
 use wgsparkl_testbed3d::{init_testbed, AppState, PhysicsContext, SceneInits};
 
@@ -40,13 +40,10 @@ pub fn sand_demo(
                 ] * cell_width
                     / 2.0;
                 let density = 2700.0;
+                let radius = cell_width / 4.0;
                 particles.push(Particle {
                     position,
-                    velocity: Vector3::zeros(),
-                    volume: ParticleMassProps::new(
-                        density * (cell_width / 2.0).powi(3),
-                        cell_width / 4.0,
-                    ),
+                    dynamics: ParticleDynamics::with_density(radius, density),
                     model: ElasticCoefficients::from_young_modulus(2_000_000_000.0, 0.2),
                     plasticity: Some(DruckerPrager::new(2_000_000_000.0, 0.2)),
                     phase: None,

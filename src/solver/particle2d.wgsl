@@ -4,13 +4,16 @@ struct Position {
     pt: vec2<f32>,
 }
 
-struct Velocity {
-    v: vec2<f32>,
-}
-
-struct Volume {
+struct Dynamics {
+    // NOTE: with this arrangement, we have
+    //       only a 4-bytes padding at the end
+    //       of the struct.
+    velocity: vec2<f32>,
     def_grad: mat2x2<f32>,
-    init_volume_radius: vec2<f32>, // init volume and init radius
+    affine: mat2x2<f32>,
+    cdf: Cdf,
+    init_volume: f32,
+    init_radius: f32,
     mass: f32,
 }
 
@@ -31,26 +34,6 @@ struct Cdf {
 
 fn default_cdf() -> Cdf {
     return Cdf(vec2(0.0), vec2(0.0), 0.0, 0);
-}
-
-fn deformation_gradient(volume: Volume) -> mat2x2<f32> {
-    return volume.def_grad;
-}
-
-fn set_deformation_gradient(vol: Volume, new_def_grad: mat2x2<f32>) -> Volume {
-    return Volume(new_def_grad, vol.init_volume_radius, vol.mass);
-}
-
-fn mass(volume: Volume) -> f32 {
-    return volume.mass;
-}
-
-fn init_volume(volume: Volume) -> f32 {
-    return volume.init_volume_radius.x;
-}
-
-fn init_radius(volume: Volume) -> f32 {
-    return volume.init_volume_radius.y;
 }
 
 fn closest_grid_pos(part_pos: Position, cell_width: f32) -> vec2<f32> {

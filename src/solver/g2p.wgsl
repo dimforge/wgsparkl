@@ -11,19 +11,10 @@
 @group(1) @binding(0)
 var<storage, read> particles_pos: array<Particle::Position>;
 @group(1) @binding(1)
-var<storage, read_write> particles_vel: array<Particle::Velocity>;
-#if DIM == 2
+var<storage, read_write> particles_dyn: array<Particle::Dynamics>;
 @group(1) @binding(2)
-var<storage, read_write> particles_affine: array<mat2x2<f32>>;
-#else
-@group(1) @binding(2)
-var<storage, read_write> particles_affine: array<mat3x3<f32>>;
-#endif
-@group(1) @binding(3)
-var<storage, read_write> particles_cdf: array<Particle::Cdf>;
-@group(1) @binding(4)
 var<storage, read> sorted_particle_ids: array<u32>;
-@group(1) @binding(5)
+@group(1) @binding(3)
 var<uniform> params: Params::SimulationParams;
 
 @group(2) @binding(0)
@@ -155,9 +146,9 @@ fn particle_g2p(particle_id: u32, cell_width: f32, dt: f32) {
 
     // G2P
     {
-        let particle_cdf = particles_cdf[particle_id];
         let particle_pos = particles_pos[particle_id];
-        let particle_vel = particles_vel[particle_id].v;
+        let particle_vel = particles_dyn[particle_id].velocity;
+        let particle_cdf = particles_dyn[particle_id].cdf;
 
         let inv_d = Kernel::inv_d(cell_width);
         let ref_elt_pos_minus_particle_pos = Particle::dir_to_associated_grid_node(particle_pos, cell_width);
@@ -232,14 +223,14 @@ fn particle_g2p(particle_id: u32, cell_width: f32, dt: f32) {
         }
     }
 
-    particles_cdf[particle_id].rigid_vel = rigid_vel;
+    particles_dyn[particle_id].cdf.rigid_vel = rigid_vel;
     // Set the particle velocity, and store the velocity gradient into the affine matrix.
     // The rest will be dealt with in the particle update kernel(s).
-    particles_affine[particle_id] = velocity_gradient;
+    particles_dyn[particle_id].affine = velocity_gradient;
 #if DIM == 2
-    particles_vel[particle_id].v = momentum_velocity_mass.xy;
+    particles_dyn[particle_id].velocity = momentum_velocity_mass.xy;
 #else
-    particles_vel[particle_id].v = momentum_velocity_mass.xyz;
+    particles_dyn[particle_id].velocity = momentum_velocity_mass.xyz;
 #endif
 }
 

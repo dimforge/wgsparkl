@@ -10,16 +10,12 @@ var<storage, read_write> instances: array<InstanceData>;
 @group(0) @binding(1)
 var<storage, read> particles_pos: array<Particle::Position>;
 @group(0) @binding(2)
-var<storage, read> particles_vol: array<Particle::Volume>;
+var<storage, read> particles_dyn: array<Particle::Dynamics>;
 @group(0) @binding(3)
-var<storage, read> particles_vel: array<Particle::Velocity>;
-@group(0) @binding(4)
-var<storage, read> particles_cdf: array<Particle::Cdf>;
-@group(0) @binding(5)
 var<storage, read_write> grid: Grid::Grid;
-@group(0) @binding(6)
+@group(0) @binding(4)
 var<uniform> params: Params::SimulationParams;
-@group(0) @binding(7)
+@group(0) @binding(5)
 var<storage, read> config: RenderConfig;
 
 struct RenderConfig {
@@ -47,7 +43,7 @@ fn main(
     let particle_id = tid.x;
 
     if particle_id < arrayLength(&instances) {
-        let def_grad = Particle::deformation_gradient(particles_vol[particle_id]);
+        let def_grad = particles_dyn[particle_id].def_grad;
         instances[particle_id].deformation = mat3x3(vec3(def_grad.x, 0.0), vec3(def_grad.y, 0.0), vec3(0.0, 0.0, 1.0));
         instances[particle_id].position = vec3(particles_pos[particle_id].pt, 0.0);
 
@@ -59,14 +55,14 @@ fn main(
         if config.mode == DEFAULT {
             instances[particle_id].color = color;
         } else if config.mode == VELOCITY {
-            let vel = particles_vel[particle_id].v;
+            let vel = particles_dyn[particle_id].velocity;
             instances[particle_id].color = vec4(abs(vel) * dt * 100.0 + vec2(0.2), color.z, color.w);
         } else if config.mode == VOLUME {
             let svd = Svd2::svd(def_grad);
             let color_xy = (vec2(1.0) - svd.S) / 0.005 + vec2(0.2);
             instances[particle_id].color = vec4(color_xy, color.z, color.w);
         } else if config.mode == CDF_NORMALS {
-            let particle_normal = particles_cdf[particle_id].normal;
+            let particle_normal = particles_dyn[particle_id].cdf.normal;
             if all(particle_normal == vec2(0.0)) {
                 instances[particle_id].color = vec4(0.0, 0.0, 0.0, color.w);
             } else {
@@ -74,14 +70,14 @@ fn main(
                 instances[particle_id].color = vec4(n.x, n.y, 0.0, color.w);
             }
         } else if config.mode == CDF_DISTANCES {
-            let d = particles_cdf[particle_id].signed_distance / (cell_width * 1.5);
+            let d = particles_dyn[particle_id].cdf.signed_distance / (cell_width * 1.5);
             if d > 0.0 {
                 instances[particle_id].color = vec4(0.0, abs(d), 0.0, color.w);
             } else {
                 instances[particle_id].color = vec4(abs(d), 0.0, 0.0, color.w);
             }
         } else if config.mode == CDF_SIGNS {
-             let d = particles_cdf[particle_id].affinity;
+             let d = particles_dyn[particle_id].cdf.affinity;
              let a = (d >> 16) & (d & 0x0000ffff);
              if d == 0 {
                  instances[particle_id].color = vec4(0.0, 0.0, 0.0, color.w);

@@ -11,23 +11,12 @@
 @group(1) @binding(0)
 var<storage, read> particles_pos: array<Particle::Position>;
 @group(1) @binding(1)
-var<storage, read> particles_vel: array<Particle::Velocity>;
+var<storage, read> particles_dyn: array<Particle::Dynamics>;
 @group(1) @binding(2)
-var<storage, read> particles_vol: array<Particle::Volume>;
-#if DIM == 2
-@group(1) @binding(3)
-var<storage, read> particles_affine: array<mat2x2<f32>>;
-#else
-@group(1) @binding(3)
-var<storage, read> particles_affine: array<mat3x3<f32>>;
-#endif
-@group(1) @binding(4)
-var<storage, read> particles_cdf: array<Particle::Cdf>;
-@group(1) @binding(5)
 var<storage, read> nodes_linked_lists: array<Grid::NodeLinkedList>;
-@group(1) @binding(6)
+@group(1) @binding(3)
 var<storage, read> particle_node_linked_lists: array<u32>;
-@group(1) @binding(7)
+@group(1) @binding(4)
 var<storage, read_write> body_impulses: array<Impulse::IntegerImpulseAtomic>;
 
 @group(2) @binding(0)
@@ -374,15 +363,15 @@ fn fetch_next_particle(tid: vec3<u32>) {
                 let curr_particle_id = (*shared_node).particle_id;
 
                 if curr_particle_id != Grid::NONE {
-                    shared_affinities[shared_flat_index] = particles_cdf[curr_particle_id].affinity;
-                    shared_normals[shared_flat_index] = particles_cdf[curr_particle_id].normal;
+                    shared_affinities[shared_flat_index] = particles_dyn[curr_particle_id].cdf.affinity;
+                    shared_normals[shared_flat_index] = particles_dyn[curr_particle_id].cdf.normal;
                     shared_pos[shared_flat_index] = particles_pos[curr_particle_id];
-                    shared_affine[shared_flat_index] = particles_affine[curr_particle_id];
+                    shared_affine[shared_flat_index] = particles_dyn[curr_particle_id].affine;
 
 #if DIM == 2
-                    shared_vel_mass[shared_flat_index] = vec3(particles_vel[curr_particle_id].v, Particle::mass(particles_vol[curr_particle_id]));
+                    shared_vel_mass[shared_flat_index] = vec3(particles_dyn[curr_particle_id].velocity, particles_dyn[curr_particle_id].mass);
 #else
-                    shared_vel_mass[shared_flat_index] = vec4(particles_vel[curr_particle_id].v, Particle::mass(particles_vol[curr_particle_id]));
+                    shared_vel_mass[shared_flat_index] = vec4(particles_dyn[curr_particle_id].velocity, particles_dyn[curr_particle_id].mass);
 #endif
 
                     let next_particle_id = particle_node_linked_lists[curr_particle_id];

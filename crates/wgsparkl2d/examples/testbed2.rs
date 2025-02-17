@@ -12,7 +12,7 @@ use wgsparkl::solver::ParticlePhase;
 use wgsparkl::{
     models::ElasticCoefficients,
     pipeline::MpmData,
-    solver::{Particle, ParticleMassProps, SimulationParams},
+    solver::{Particle, SimulationParams},
 };
 use wgsparkl_testbed2d::{init_testbed, AppState, PhysicsContext, SceneInits};
 

@@ -95,9 +95,7 @@ impl WgPrepVertexBuffer {
             .bind0([
                 vertex_buffer,
                 particles.positions.buffer(),
-                particles.volumes.buffer(),
-                particles.velocities.buffer(),
-                particles.cdf.buffer(),
+                particles.dynamics.buffer(),
                 grid.meta.buffer(),
                 params.params.buffer(),
                 config.buffer.buffer(),

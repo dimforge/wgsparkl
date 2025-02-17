@@ -7,7 +7,7 @@ use wgsparkl::models::DruckerPrager;
 use wgsparkl::{
     models::ElasticCoefficients,
     pipeline::MpmData,
-    solver::{Particle, ParticleMassProps, ParticlePhase, SimulationParams},
+    solver::{Particle, ParticlePhase, SimulationParams},
 };
 use wgsparkl_testbed3d::{init_testbed, AppState, PhysicsContext, SceneInits};
 

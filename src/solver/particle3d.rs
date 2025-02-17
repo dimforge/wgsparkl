@@ -2,7 +2,7 @@ use crate::dim_shader_defs;
 use crate::models::{DruckerPrager, ElasticCoefficients};
 use crate::solver::ParticlePhase;
 use encase::ShaderType;
-use nalgebra::{vector, Isometry3, Matrix4, Matrix4x3, Point3, Vector3, Vector4};
+use nalgebra::{vector, Isometry3, Matrix3, Matrix4, Matrix4x3, Point3, Vector3, Vector4};
 use rapier::geometry::{Segment, Triangle};
 use rapier::prelude::{ColliderSet, TriMesh};
 use std::collections::HashSet;
@@ -12,30 +12,31 @@ use wgpu::{BufferUsages, Device};
 use wgrapier::dynamics::body::BodyCouplingEntry;
 use wgrapier::dynamics::GpuBodySet;
 
-#[derive(bytemuck::Pod, bytemuck::Zeroable, Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Debug, ShaderType)]
 #[repr(C)]
-pub struct ParticleMassProps {
-    // First free rows contains the deformation gradient.
-    // Bottom row contains (mass, init_volume, init_radius)
-    props: Matrix4x3<f32>,
+pub struct ParticleDynamics {
+    pub velocity: Vector3<f32>,
+    pub def_grad: Matrix3<f32>,
+    pub affine: Matrix3<f32>,
+    pub cdf: Cdf,
+    pub init_volume: f32,
+    pub init_radius: f32,
+    pub mass: f32,
 }
 
-impl ParticleMassProps {
-    pub fn new(mass: f32, init_radius: f32) -> Self {
-        let init_volume = (init_radius * 2.0).powi(3); // NOTE: the particles are square-ish.
+impl ParticleDynamics {
+    pub fn with_density(radius: f32, density: f32) -> Self {
+        let exponent = if cfg!(feature = "dim2") { 2 } else { 3 };
+        let init_volume = (radius * 2.0).powi(exponent); // NOTE: the particles are square-ish.
         Self {
-            #[rustfmt::skip]
-            props: Matrix4x3::new(
-                1.0, 0.0, 0.0,
-                0.0, 1.0, 0.0,
-                0.0, 0.0, 1.0,
-                mass, init_volume, init_radius,
-            ),
+            velocity: Vector3::zeros(),
+            def_grad: Matrix3::identity(),
+            affine: Matrix3::zeros(),
+            init_volume,
+            init_radius: radius,
+            mass: init_volume * density,
+            cdf: Cdf::default(),
         }
-    }
-
-    pub fn init_radius(&self) -> f32 {
-        self.props.m43
     }
 }
 
@@ -51,8 +52,7 @@ pub struct Cdf {
 #[derive(Copy, Clone, Debug)]
 pub struct Particle {
     pub position: Vector3<f32>,
-    pub velocity: Vector3<f32>,
-    pub volume: ParticleMassProps,
+    pub dynamics: ParticleDynamics,
     pub model: ElasticCoefficients,
     pub plasticity: Option<DruckerPrager>,
     pub phase: Option<ParticlePhase>,
@@ -164,11 +164,7 @@ impl GpuRigidParticles {
 
 pub struct GpuParticles {
     pub positions: GpuVector<Vector4<f32>>,
-    pub velocities: GpuVector<Vector4<f32>>,
-    pub cdf: GpuVector<Cdf>,
-    pub cdf_read: GpuVector<Cdf>,
-    pub volumes: GpuVector<ParticleMassProps>,
-    pub affines: GpuVector<Matrix4<f32>>,
+    pub dynamics: GpuVector<ParticleDynamics>,
     pub sorted_ids: GpuVector<u32>,
     pub node_linked_lists: GpuVector<u32>,
 }
@@ -180,22 +176,12 @@ impl GpuParticles {
 
     pub fn from_particles(device: &Device, particles: &[Particle]) -> Self {
         let positions: Vec<_> = particles.iter().map(|p| p.position.push(0.0)).collect();
-        let velocities: Vec<_> = particles.iter().map(|p| p.velocity.push(0.0)).collect();
-        let volumes: Vec<_> = particles.iter().map(|p| p.volume).collect();
-        let cdf = vec![Cdf::default(); particles.len()];
+        let dynamics: Vec<_> = particles.iter().map(|p| p.dynamics).collect();
 
         Self {
             positions: GpuVector::init(device, &positions, BufferUsages::STORAGE),
-            velocities: GpuVector::init(device, &velocities, BufferUsages::STORAGE),
-            volumes: GpuVector::init(device, &volumes, BufferUsages::STORAGE),
+            dynamics: GpuVector::encase(device, &dynamics, BufferUsages::STORAGE),
             sorted_ids: GpuVector::uninit(device, particles.len() as u32, BufferUsages::STORAGE),
-            affines: GpuVector::uninit(device, particles.len() as u32, BufferUsages::STORAGE),
-            cdf: GpuVector::encase(device, &cdf, BufferUsages::STORAGE | BufferUsages::COPY_SRC),
-            cdf_read: GpuVector::encase(
-                device,
-                &cdf,
-                BufferUsages::COPY_DST | BufferUsages::MAP_READ,
-            ),
             node_linked_lists: GpuVector::uninit(
                 device,
                 particles.len() as u32,

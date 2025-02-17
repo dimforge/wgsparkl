@@ -43,7 +43,7 @@ impl WgG2PCdf {
                 1,
                 [
                     particles.positions.buffer(),
-                    particles.cdf.buffer(),
+                    particles.dynamics.buffer(),
                     particles.sorted_ids.buffer(),
                     sim_params.params.buffer(),
                 ],

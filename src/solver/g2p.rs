@@ -45,9 +45,7 @@ impl WgG2P {
                 1,
                 [
                     particles.positions.buffer(),
-                    particles.velocities.buffer(),
-                    particles.affines.buffer(),
-                    particles.cdf.buffer(),
+                    particles.dynamics.buffer(),
                     particles.sorted_ids.buffer(),
                     sim_params.params.buffer(),
                 ],

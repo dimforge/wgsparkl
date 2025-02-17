@@ -15,7 +15,7 @@
 @group(1) @binding(0)
 var<storage, read> particles_pos: array<Particle::Position>;
 @group(1) @binding(1)
-var<storage, read_write> particles_cdf: array<Particle::Cdf>;
+var<storage, read_write> particles_dyn: array<Particle::Dynamics>;
 @group(1) @binding(2)
 var<storage, read> sorted_particle_ids: array<u32>;
 @group(1) @binding(3)
@@ -138,7 +138,7 @@ fn particle_g2p(particle_id: u32, cell_width: f32, dt: f32) {
         0.0, 0.0, 0.0, 0.0
     );
 
-    let prev_affinity = particles_cdf[particle_id].affinity;
+    let prev_affinity = particles_dyn[particle_id].cdf.affinity;
     let particle_pos = particles_pos[particle_id];
     let inv_d = Kernel::inv_d(cell_width);
     let ref_elt_pos_minus_particle_pos = Particle::dir_to_associated_grid_node(particle_pos, cell_width);
@@ -237,15 +237,15 @@ fn particle_g2p(particle_id: u32, cell_width: f32, dt: f32) {
         let len = length(result.xy);
         let normal = select(vec2(0.0), result.xy / len, len > 1.0e-6);
         // PERF: init the rigid-velocities here instead of in g2p?
-        particles_cdf[particle_id] = Particle::Cdf(normal, vec2(0.0), result.z, particle_affinity);
+        particles_dyn[particle_id].cdf = Particle::Cdf(normal, vec2(0.0), result.z, particle_affinity);
 #else
         let result = Inv::inv4(qtq) * qtu;
         let normal = result.xyz / length(result.xyz);
-        particles_cdf[particle_id] = Particle::Cdf(normal, vec3(0.0), result.w, particle_affinity);
+        particles_dyn[particle_id].cdf = Particle::Cdf(normal, vec3(0.0), result.w, particle_affinity);
 #endif
     } else {
         // TODO: store the affinity in this case too?
-        particles_cdf[particle_id] = Particle::default_cdf();
+        particles_dyn[particle_id].cdf = Particle::default_cdf();
     }
 }
 
