@@ -55,6 +55,7 @@ pub struct Particle {
 }
 
 pub struct GpuRigidParticles {
+    pub local_sample_points: GpuVector<Point2<f32>>,
     pub sample_points: GpuVector<Point2<f32>>,
     pub rigid_particle_needs_block: GpuVector<u32>,
     pub node_linked_lists: GpuVector<u32>,
@@ -89,6 +90,11 @@ impl GpuRigidParticles {
         }
 
         Self {
+            local_sample_points: GpuVector::encase(
+                device,
+                &sampling_buffers.samples,
+                BufferUsages::STORAGE,
+            ),
             sample_points: GpuVector::init(
                 device,
                 &sampling_buffers.samples,

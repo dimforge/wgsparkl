@@ -7,7 +7,6 @@ var<storage, read_write> active_blocks: array<ActiveBlockHeader>;
 @group(0) @binding(8)
 var<storage, read_write> num_collisions: array<atomic<u32>>;
 
-
 struct NodeLinkedListAtomic {
     head: atomic<u32>,
     len: atomic<u32>,
@@ -242,7 +241,7 @@ struct Position {
 
 @group(1) @binding(0)
 var<storage, read_write> particles_pos: array<Position>;
-@group(1) @binding(1)
+@group(1) @binding(6)
 var<storage, read_write> rigid_particle_needs_block: array<u32>;
 
 @compute @workgroup_size(GRID_WORKGROUP_SIZE, 1, 1)

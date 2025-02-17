@@ -207,18 +207,8 @@ impl GpuParticles {
 
 // TODO: move this elsewhere?
 fn sample_trimesh(trimesh: &TriMesh, params: &SamplingParams, buffers: &mut SamplingBuffers) {
-    // let samples = sample_mesh(
-    //     trimesh.vertices(),
-    //     trimesh.indices(),
-    //     params.sampling_step / 2.0,
-    // );
-    let mut samples = vec![];
-    generate_samples(
-        trimesh.vertices(),
-        trimesh.indices(),
-        params.sampling_step,
-        &mut samples,
-    );
+    let samples = sample_mesh(trimesh.vertices(), trimesh.indices(), params.sampling_step);
+
     for sample in samples {
         let tri_idx = trimesh.indices()[sample.triangle_id as usize];
         let tri = Triangle::new(
@@ -237,10 +227,13 @@ fn sample_trimesh(trimesh: &TriMesh, params: &SamplingParams, buffers: &mut Samp
         buffers.local_samples.push(sample.point);
         buffers.samples.push(sample.point);
         buffers.samples_ids.push(sample_id);
-
-        // TODO: actually sample the triangle, currently we only push
-        //       the triangle’s center.
     }
+
+    println!(
+        "Num rigid particles: {}, num triangles: {}",
+        buffers.samples.len(),
+        trimesh.indices().len()
+    );
 }
 
 // Epsilon used as a length threshold in various steps of the sampling. In particular, this avoids
@@ -429,95 +422,6 @@ pub fn sample_triangle(
             samples.push(TriangleSample {
                 point: particle_position,
                 triangle_id,
-            });
-        }
-    }
-}
-
-pub fn generate_samples(
-    vertices: &[Point3<f32>],
-    indices: &[[u32; 3]],
-    cell_width: f32,
-    samples: &mut Vec<TriangleSample>,
-) {
-    // let cell_width = cell_width / 2.0;
-    for (triangle_index, triangle) in indices.iter().enumerate() {
-        let triangle = Triangle {
-            a: vertices[triangle[0] as usize],
-            b: vertices[triangle[1] as usize],
-            c: vertices[triangle[2] as usize],
-        };
-
-        cover_triangle(triangle, samples, cell_width, triangle_index as u32);
-    }
-}
-
-// Cover the triangle with rigid particles. They should be spaced apart no more than the cell_width.
-fn cover_triangle(
-    triangle: Triangle,
-    samples: &mut Vec<TriangleSample>,
-    cell_width: f32,
-    triangle_id: u32,
-) {
-    // select the longest edge as the base
-    let distance_ab = nalgebra::distance(&triangle.b, &triangle.a);
-    let distance_bc = nalgebra::distance(&triangle.c, &triangle.b);
-    let distance_ca = nalgebra::distance(&triangle.a, &triangle.c);
-    let max = distance_ab.max(distance_bc).max(distance_ca);
-
-    let triangle = if max == distance_bc {
-        Triangle {
-            a: triangle.b,
-            b: triangle.c,
-            c: triangle.a,
-        }
-    } else if max == distance_ca {
-        Triangle {
-            a: triangle.c,
-            b: triangle.a,
-            c: triangle.b,
-        }
-    } else {
-        triangle
-    };
-
-    let ac = triangle.c - triangle.a;
-    let base = triangle.b - triangle.a;
-    let base_length = base.norm();
-    let base_dir = base / base_length;
-
-    // Calculate the step increment on the base.
-    let base_step_count = (base_length / cell_width).ceil();
-    let base_step = base_dir * base_length / base_step_count;
-
-    // Project C on the base AB.
-    let ac_offset_length = ac.dot(&base_dir);
-    let bc_offset_length = base_length - ac_offset_length;
-    // Compute the triangle’s height vector.
-    let height = ac - base_dir * ac_offset_length;
-    let height_length = height.norm();
-    let height_dir = height / height_length;
-    // Calculate the tangents.
-    let tan_alpha = height_length / ac_offset_length;
-    let tan_beta = height_length / bc_offset_length;
-
-    for i in 0..=base_step_count as u32 {
-        let base_position = triangle.a + (i as f32) * base_step;
-
-        let height_ac = tan_alpha * nalgebra::distance(&triangle.a, &base_position);
-        let height_bc = tan_beta * nalgebra::distance(&triangle.b, &base_position);
-        let height_length = height_ac.min(height_bc);
-
-        // Calculate the step increment on the height.
-        let height_step_count = (height_length / cell_width).ceil();
-        let height_step = height_dir * height_length / height_step_count;
-
-        for j in 0..=height_step_count as u32 {
-            let particle_position = base_position + (j as f32) * height_step;
-
-            samples.push(TriangleSample {
-                triangle_id,
-                point: particle_position,
             });
         }
     }

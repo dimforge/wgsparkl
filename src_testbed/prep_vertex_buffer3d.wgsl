@@ -95,7 +95,6 @@ fn main(
     }
 }
 
-
 @compute @workgroup_size(64, 1, 1)
 fn main_rigid_particles(
     @builtin(global_invocation_id) tid: vec3<u32>,

@@ -104,11 +104,11 @@ impl WgGrid {
                         (grid.debug.buffer(), 8),
                     ],
                 )
-                .bind(
+                .bind_at(
                     1,
                     [
-                        rigid_particles.sample_points.buffer(),
-                        rigid_particles.rigid_particle_needs_block.buffer(),
+                        (rigid_particles.sample_points.buffer(), 0),
+                        (rigid_particles.rigid_particle_needs_block.buffer(), 6),
                     ],
                 )
                 .queue((rigid_particles.len() as u32).div_ceil(GRID_WORKGROUP_SIZE));

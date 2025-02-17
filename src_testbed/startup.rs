@@ -151,7 +151,7 @@ fn setup_particles_graphics(
     meshes: &mut Assets<Mesh>,
     to_clear: &Query<Entity, With<InstanceMaterialData>>,
 ) {
-    if let Ok(to_clear) = to_clear.get_single() {
+    for to_clear in to_clear.iter() {
         commands.entity(to_clear).despawn_recursive();
     }
 

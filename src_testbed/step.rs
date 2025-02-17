@@ -88,7 +88,7 @@ pub fn step_simulation_legacy(
             return GpuSim::from_isometry(*c.position(), 1.0);
         })
         .collect();
-    println!("poses: {:?}", poses_data);
+    // println!("poses: {:?}", poses_data);
     compute_queue.write_buffer(
         physics.data.bodies.poses().buffer(),
         0,
@@ -186,7 +186,7 @@ pub fn step_simulation_legacy(
             );
             rb.set_linvel(vel.linvel, true);
             rb.set_angvel(vel.angvel, true);
-            println!("dvel: {:?}", vel.linvel - vel_before);
+            // println!("dvel: {:?}", vel.linvel - vel_before);
         }
     }
 
