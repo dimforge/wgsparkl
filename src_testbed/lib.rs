@@ -52,7 +52,6 @@ pub fn init_testbed(app: &mut App) {
             // bevy_mod_picking::DefaultPickingPlugins,
             DefaultEditorCamPlugins,
         ))
-        .add_plugins(WireframePlugin)
         .add_plugins(instancing::ParticlesMaterialPlugin)
         .add_plugins(bevy_egui::EguiPlugin)
         .init_resource::<SceneInits>()
@@ -67,6 +66,9 @@ pub fn init_testbed(app: &mut App) {
             )
                 .chain(),
         );
+
+    #[cfg(not(target_arch = "wasm32"))]
+    app.add_plugins(WireframePlugin);
 
     #[cfg(feature = "dim2")]
     load_internal_asset!(
