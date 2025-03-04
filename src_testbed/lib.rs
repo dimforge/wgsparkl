@@ -101,19 +101,7 @@ pub struct AppState {
     pub show_rigid_particles: bool,
 }
 
-#[derive(Default)]
-pub struct RapierData {
-    pub bodies: RigidBodySet,
-    pub colliders: ColliderSet,
-    pub impulse_joints: ImpulseJointSet,
-    pub multibody_joints: MultibodyJointSet,
-    pub params: IntegrationParameters,
-    pub physics_pipeline: PhysicsPipeline,
-    pub narrow_phase: NarrowPhase,
-    pub broad_phase: DefaultBroadPhase,
-    pub ccd_solver: CCDSolver,
-    pub islands: IslandManager,
-}
+pub use wgsparkl::rapier::prelude::PhysicsContext as RapierData;
 
 #[derive(Resource)]
 pub struct PhysicsContext {
