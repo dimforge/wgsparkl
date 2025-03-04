@@ -3,6 +3,7 @@ use wgsparkl_testbed3d::{init_testbed, SceneInits};
 
 mod elastic_cut3;
 mod heightfield3;
+mod model_to_point_cloud;
 mod sand3;
 
 pub fn main() {
@@ -27,6 +28,10 @@ fn register_scenes(world: &mut World) {
         (
             "elastic_cut".to_string(),
             world.register_system(elastic_cut3::elastic_cut_demo),
+        ),
+        (
+            "elastic_model".to_string(),
+            world.register_system(model_to_point_cloud::elastic_model_demo),
         ),
     ];
     let mut inits = world.resource_mut::<SceneInits>();
