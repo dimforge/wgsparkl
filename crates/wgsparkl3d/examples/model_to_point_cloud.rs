@@ -6,7 +6,10 @@ use nalgebra::{point, vector, zero, Point3, Quaternion, SimdValue, Vector3};
 use obj::raw::object::Polygon;
 use rapier3d::{
     parry::bounding_volume,
-    prelude::{ColliderBuilder, QueryFilter, Real, RigidBodyBuilder, SharedShape, TriMeshFlags},
+    prelude::{
+        ColliderBuilder, PointQuery, QueryFilter, Real, RigidBodyBuilder, SharedShape, TriMesh,
+        TriMeshFlags,
+    },
 };
 use wgsparkl3d::{
     models::ElasticCoefficients,
@@ -54,52 +57,60 @@ pub fn get_point_cloud() -> Vec<Vec3> {
             Polygon::PTN(idx) => Vec::from_iter(idx.into_iter().map(|i| i.0)).into_iter(),
         })
         .collect();
+    recenter_and_scale(&mut vertices, SAMPLE_PER_UNIT);
+    get_point_cloud_from_trimesh(&vertices, &indices, SAMPLE_PER_UNIT)
+}
 
+pub fn recenter_and_scale(
+    vertices: &mut Vec<nalgebra::OPoint<f32, nalgebra::Const<3>>>,
+    sample_per_unit: f32,
+) {
+    // Compute the size of the model, to scale it and have similar size for everything.
     let aabb =
-        bounding_volume::details::point_cloud_aabb(&rapier3d::na::Isometry::default(), &vertices);
+        bounding_volume::details::point_cloud_aabb(&rapier3d::na::Isometry::default(), &*vertices);
     let center = aabb.center();
     let diag = (aabb.maxs - aabb.mins).norm();
-
-    // Compute the size of the model, to scale it and have similar size for everything.
     vertices
         .iter_mut()
-        .for_each(|p| *p = (*p - center.coords) * 10.0 / diag);
+        .for_each(|p| *p = (*p - center.coords) * sample_per_unit / diag);
+}
+
+pub fn get_point_cloud_from_trimesh(
+    vertices: &Vec<nalgebra::OPoint<f32, nalgebra::Const<3>>>,
+    indices: &Vec<usize>,
+    sample_per_unit: f32,
+) -> Vec<Vec3> {
+    let mut vertices = vertices.clone();
+
     let indices: Vec<_> = indices
         .chunks(3)
         .map(|idx| [idx[0] as u32, idx[1] as u32, idx[2] as u32])
         .collect();
     let aabb =
         bounding_volume::details::point_cloud_aabb(&rapier3d::na::Isometry::default(), &vertices);
-
-    let decomposed_shape = SharedShape::convex_decomposition(&vertices, &indices);
-
-    let mut rapier = RapierData::default();
-    rapier.insert_body_and_collider(
-        RigidBodyBuilder::fixed(),
-        ColliderBuilder::new(decomposed_shape.clone()),
-    );
-    rapier.update();
+    let trimesh =
+        TriMesh::with_flags(vertices, indices, TriMeshFlags::ORIENTED).expect("Invalid mesh");
     let mut positions = vec![];
-    dbg!(aabb);
+
     let aabb_sample = aabb.scaled(&Vector3::new(
-        SAMPLE_PER_UNIT,
-        SAMPLE_PER_UNIT,
-        SAMPLE_PER_UNIT,
+        sample_per_unit,
+        sample_per_unit,
+        sample_per_unit,
     ));
     for x in aabb_sample.mins.x as i32..aabb_sample.maxs.x as i32 {
         for y in aabb_sample.mins.y as i32..aabb_sample.maxs.y as i32 {
             for z in aabb_sample.mins.z as i32..aabb_sample.maxs.z as i32 {
-                let point = Point3::new(x as f32, y as f32, z as f32) / SAMPLE_PER_UNIT;
+                let point = Point3::new(x as f32, y as f32, z as f32) / sample_per_unit;
                 let pos = Vec3::new(point.x, point.y, point.z);
-                rapier.intersections_with_point(&point, QueryFilter::default(), |handle| {
+                if trimesh.contains_local_point(&point) {
                     positions.push(pos);
-                    false
-                });
+                }
             }
         }
     }
     positions
 }
+
 pub fn init_rapier_scene(mut commands: Commands) {
     commands.spawn((Camera3d::default(), Camera::default(), EditorCam::default()));
 

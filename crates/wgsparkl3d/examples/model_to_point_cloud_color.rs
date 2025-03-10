@@ -1,6 +1,9 @@
+mod model_to_point_cloud;
+
 use bevy::{
     app::{App, Startup, Update},
-    color::Color,
+    asset::RenderAssetUsages,
+    color::{palettes::css, Color},
     core_pipeline::core_3d::Camera3d,
     ecs::{
         component::Component,
@@ -8,13 +11,20 @@ use bevy::{
     },
     gizmos::gizmos::Gizmos,
     math::Vec3,
+    pbr::CascadeShadowConfigBuilder,
     picking::mesh_picking::MeshPickingPlugin,
-    render::camera::Camera,
+    prelude::*,
+    render::{
+        camera::Camera,
+        mesh::{Indices, Mesh},
+    },
     DefaultPlugins,
 };
 use bevy_editor_cam::{prelude::EditorCam, DefaultEditorCamPlugins};
 use image::RgbaImage;
-use std::{fs::File, io::Read};
+use nalgebra::{Matrix4, Point3, Vector3};
+use std::{f32::consts::PI, fs::File, io::Read};
+use wgpu::PrimitiveTopology;
 
 fn extract_embedded_texture<'a>(
     gltf: &gltf::Document,
@@ -75,24 +85,108 @@ pub struct PointCloud {
     pub positions: Vec<(Vec3, Color)>,
 }
 
-fn init_scene(mut commands: Commands) {
+fn closest_point(target: Vec3, points: &[(Vec3, Color)]) -> Option<&(Vec3, Color)> {
+    points.iter().min_by(|a, b| {
+        a.0.distance_squared(target)
+            .partial_cmp(&b.0.distance_squared(target))
+            .unwrap()
+    })
+}
+
+fn init_scene(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
     let path = "assets/Car 3D Model.glb"; // Replace with your actual GLB file path
-    let pc = load_model(path);
+    let res = load_model(path);
 
     commands.spawn((Camera3d::default(), Camera::default(), EditorCam::default()));
+    commands.spawn((
+        DirectionalLight {
+            shadows_enabled: true,
+            ..default()
+        },
+        Transform {
+            translation: Vec3::new(0.0, 2.0, 0.0),
+            rotation: Quat::from_rotation_x(-PI / 4.),
+            ..default()
+        },
+        CascadeShadowConfigBuilder {
+            num_cascades: 4,
+            maximum_distance: 2500.0,
+            ..default()
+        }
+        .build(),
+    ));
 
-    commands.spawn(PointCloud { positions: pc });
+    let mut pc_grid = vec![];
+
+    let colors = [
+        css::BLUE,
+        css::RED,
+        css::GREEN,
+        css::YELLOW,
+        css::SEASHELL,
+        css::MAGENTA,
+        css::WHITE,
+        css::BLACK,
+        css::BROWN,
+    ];
+    // TODO: load real gltf model to add a comparison
+    for (t_id, trimesh) in res.1.iter().enumerate() {
+        let color = Color::from(colors[t_id % colors.len()]);
+        let mut mesh = Mesh::new(
+            PrimitiveTopology::TriangleList,
+            RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
+        )
+        .with_inserted_attribute(
+            Mesh::ATTRIBUTE_POSITION,
+            trimesh
+                .0
+                .iter()
+                .map(|p| Vec3::new(p.x, p.y, p.z))
+                .collect::<Vec<_>>(),
+        )
+        .with_inserted_indices(Indices::U32(trimesh.1.iter().map(|i| *i as u32).collect()));
+        mesh.duplicate_vertices();
+        mesh.compute_flat_normals();
+        let mesh_handle: Handle<Mesh> = meshes.add(mesh);
+        commands.spawn((
+            Mesh3d(mesh_handle),
+            MeshMaterial3d(materials.add(StandardMaterial::from_color(color.darker(0.5)))),
+        ));
+
+        let mut pc =
+            model_to_point_cloud::get_point_cloud_from_trimesh(&trimesh.0, &trimesh.1, 0.06)
+                .into_iter()
+                .enumerate()
+                .map(|(i, p)| {
+                    let closest_color = closest_point(p, &res.0).unwrap();
+                    (p, closest_color.1)
+                    //(p, color)
+                })
+                .collect();
+        pc_grid.append(&mut pc);
+    }
+
+    commands.spawn(PointCloud { positions: pc_grid });
 }
 
 fn display_point_cloud(mut pcs: Query<&PointCloud>, mut gizmos: Gizmos) {
     for pc in pcs.iter() {
         for p in pc.positions.iter() {
-            gizmos.sphere(p.0, 0.5f32, p.1);
+            gizmos.sphere(p.0, 0.95f32, p.1);
         }
     }
 }
 
-fn load_model(path: &str) -> Vec<(Vec3, Color)> {
+fn load_model(
+    path: &str,
+) -> (
+    Vec<(Vec3, Color)>,
+    Vec<(Vec<nalgebra::Point3<f32>>, Vec<usize>)>,
+) {
     let mut file = File::open(path).expect("Failed to open GLB file");
     let mut buffer = Vec::new();
     file.read_to_end(&mut buffer).expect("Failed to read file");
@@ -102,22 +196,37 @@ fn load_model(path: &str) -> Vec<(Vec3, Color)> {
     // Extract embedded texture
     let texture = extract_embedded_texture(&gltf, &buffers).expect("Failed to extract texture");
 
-    let mut result = vec![];
+    let mut pcs = vec![];
+    let mut trimeshes = vec![];
     for scene in gltf.scenes() {
         for node in scene.nodes() {
-            result.append(&mut recurse_inspect_scene(&buffers, &texture, node));
+            let mut res = recurse_inspect_scene(&buffers, &texture, node, Matrix4::identity());
+            pcs.append(&mut res.0);
+            trimeshes.append(&mut res.1);
         }
     }
-    result
+
+    (pcs, trimeshes)
+}
+
+fn get_node_transform(node: &gltf::Node, parent_transform: Matrix4<f32>) -> Matrix4<f32> {
+    let matrix = node.transform().matrix();
+    parent_transform * Matrix4::from_column_slice(&matrix.concat())
 }
 
 fn recurse_inspect_scene(
     buffers: &Vec<gltf::buffer::Data>,
     texture: &image::ImageBuffer<image::Rgba<u8>, Vec<u8>>,
     node: gltf::Node<'_>,
-) -> Vec<(Vec3, Color)> {
+    parent_transform: Matrix4<f32>,
+) -> (
+    Vec<(Vec3, Color)>,
+    Vec<(Vec<nalgebra::Point3<f32>>, Vec<usize>)>,
+) {
     dbg!(node.name());
-    let mut result = vec![];
+    let world_transform = get_node_transform(&node, parent_transform);
+    let mut point_cloud = vec![];
+    let mut trimeshes = vec![];
     if let Some(mesh) = node.mesh() {
         dbg!(mesh.name());
         for primitive in mesh.primitives() {
@@ -133,9 +242,12 @@ fn recurse_inspect_scene(
                     vertex_data.push((pos, color));
                 }
 
+                let mut positions = vec![];
                 for (i, (pos, color)) in vertex_data.iter().enumerate() {
-                    result.push((
-                        Vec3::new(pos[0], pos[1], pos[2]),
+                    let position = Point3::new(pos[0], pos[1], pos[2]);
+                    let transformed = world_transform.transform_point(&position);
+                    point_cloud.push((
+                        Vec3::new(transformed.x, transformed.y, transformed.z),
                         Color::linear_rgba(
                             color[0] as f32 / 255f32,
                             color[1] as f32 / 255f32,
@@ -143,14 +255,26 @@ fn recurse_inspect_scene(
                             color[3] as f32 / 255f32,
                         ),
                     ));
+
+                    positions.push(transformed);
                 }
+                // read indices
+                let indices = reader
+                    .read_indices()
+                    .expect("No indices found")
+                    .into_u32()
+                    .map(|i| i as usize)
+                    .collect::<Vec<_>>();
+                trimeshes.push((positions, indices));
             } else {
                 println!("No UV coordinates or positions found.");
             }
         }
     }
     for child in node.children() {
-        result.append(&mut recurse_inspect_scene(buffers, texture, child));
+        let mut res = recurse_inspect_scene(buffers, texture, child, world_transform);
+        point_cloud.append(&mut res.0);
+        trimeshes.append(&mut res.1);
     }
-    result
+    (point_cloud, trimeshes)
 }
