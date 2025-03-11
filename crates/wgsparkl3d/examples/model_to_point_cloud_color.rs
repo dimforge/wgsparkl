@@ -11,12 +11,18 @@ use bevy::{
     },
     gizmos::gizmos::Gizmos,
     math::Vec3,
-    pbr::CascadeShadowConfigBuilder,
+    pbr::{
+        wireframe::{Wireframe, WireframePlugin},
+        CascadeShadowConfigBuilder,
+    },
     picking::mesh_picking::MeshPickingPlugin,
     prelude::*,
     render::{
         camera::Camera,
         mesh::{Indices, Mesh},
+        render_resource::WgpuFeatures,
+        settings::{RenderCreation, WgpuSettings},
+        RenderPlugin,
     },
     DefaultPlugins,
 };
@@ -24,7 +30,7 @@ use bevy_editor_cam::{prelude::EditorCam, DefaultEditorCamPlugins};
 use image::RgbaImage;
 use nalgebra::{Matrix4, Point3, Vector3};
 use std::{f32::consts::PI, fs::File, io::Read};
-use wgpu::PrimitiveTopology;
+use wgpu::{Features, PrimitiveTopology};
 
 fn extract_embedded_texture<'a>(
     gltf: &gltf::Document,
@@ -74,7 +80,20 @@ fn sample_texture(texture: &RgbaImage, uv: [f32; 2]) -> [u8; 4] {
 
 fn main() {
     App::new()
-        .add_plugins((DefaultPlugins, MeshPickingPlugin, DefaultEditorCamPlugins))
+        .add_plugins((
+            DefaultPlugins.set(RenderPlugin {
+                render_creation: RenderCreation::Automatic(WgpuSettings {
+                    // WARN this is a native only feature. It will not work with webgl or webgpu
+                    features: WgpuFeatures::POLYGON_MODE_LINE,
+                    ..default()
+                }),
+                ..default()
+            }),
+            // You need to add this plugin to enable wireframe rendering
+            WireframePlugin,
+            MeshPickingPlugin,
+            DefaultEditorCamPlugins,
+        ))
         .add_systems(Startup, init_scene)
         .add_systems(Update, display_point_cloud)
         .run();
@@ -97,8 +116,9 @@ fn init_scene(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
 ) {
-    let path = "assets/Car 3D Model.glb"; // Replace with your actual GLB file path
+    let path = "assets/shiba.glb"; // Replace with your actual GLB file path
     let res = load_model(path);
 
     commands.spawn((Camera3d::default(), Camera::default(), EditorCam::default()));
@@ -134,7 +154,15 @@ fn init_scene(
         css::BROWN,
     ];
     // TODO: load real gltf model to add a comparison
+    // commands.spawn((
+    //     Transform::from_xyz(0.0, 0.0, 0.0),
+    //     SceneRoot(asset_server.load(GltfAssetLabel::Scene(0).from_asset("car/scene.gltf"))),
+    // ));
+
     for (t_id, trimesh) in res.1.iter().enumerate() {
+        if t_id != 0 {
+            //continue;
+        }
         let color = Color::from(colors[t_id % colors.len()]);
         let mut mesh = Mesh::new(
             PrimitiveTopology::TriangleList,
@@ -152,19 +180,22 @@ fn init_scene(
         mesh.duplicate_vertices();
         mesh.compute_flat_normals();
         let mesh_handle: Handle<Mesh> = meshes.add(mesh);
-        commands.spawn((
-            Mesh3d(mesh_handle),
-            MeshMaterial3d(materials.add(StandardMaterial::from_color(color.darker(0.5)))),
-        ));
+        let offset = Vec3::ZERO; //Vec3::X * (t_id as f32 * 200f32);
+                                 /*commands.spawn((
+                                     Mesh3d(mesh_handle),
+                                     //MeshMaterial3d(materials.add(StandardMaterial::from_color(color.darker(0.5)))),
+                                     Transform::from_translation(offset),
+                                     Wireframe,
+                                 ));*/
 
         let mut pc =
-            model_to_point_cloud::get_point_cloud_from_trimesh(&trimesh.0, &trimesh.1, 0.06)
+            model_to_point_cloud::get_point_cloud_from_trimesh(&trimesh.0, &trimesh.1, 35.0)
                 .into_iter()
                 .enumerate()
-                .map(|(i, p)| {
+                .map(|(i, (p, color))| {
                     let closest_color = closest_point(p, &res.0).unwrap();
                     (p, closest_color.1)
-                    //(p, color)
+                    //(p + offset, color)
                 })
                 .collect();
         pc_grid.append(&mut pc);
@@ -176,7 +207,7 @@ fn init_scene(
 fn display_point_cloud(mut pcs: Query<&PointCloud>, mut gizmos: Gizmos) {
     for pc in pcs.iter() {
         for p in pc.positions.iter() {
-            gizmos.sphere(p.0, 0.95f32, p.1);
+            gizmos.sphere(p.0, 0.01f32, p.1);
         }
     }
 }
