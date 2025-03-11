@@ -46,6 +46,7 @@ pub fn heightfield_demo(
                     model: ElasticCoefficients::from_young_modulus(2_000_000_000.0, 0.2),
                     plasticity: Some(DruckerPrager::new(2_000_000_000.0, 0.2)),
                     phase: None,
+                    color: None,
                 });
             }
         }
