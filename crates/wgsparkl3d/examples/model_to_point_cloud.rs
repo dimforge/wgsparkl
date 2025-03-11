@@ -1,6 +1,6 @@
 use std::{fs::File, io::BufReader};
 
-use bevy::{prelude::*, render::renderer::RenderDevice};
+use bevy::{color::palettes::css, prelude::*, render::renderer::RenderDevice};
 use bevy_editor_cam::{prelude::EditorCam, DefaultEditorCamPlugins};
 use nalgebra::{point, vector, zero, Point3, Quaternion, SimdValue, Vector3};
 use obj::raw::object::Polygon;
@@ -34,7 +34,7 @@ pub struct PointCloud {
 
 const SAMPLE_PER_UNIT: f32 = 10.0;
 
-pub fn get_point_cloud() -> Vec<Vec3> {
+pub fn get_point_cloud() -> Vec<(Vec3, Color)> {
     let obj_path = "assets/camel_decimated.obj";
     println!("Parsing and decomposing: {}", obj_path);
     let input = BufReader::new(File::open(obj_path).unwrap());
@@ -79,7 +79,7 @@ pub fn get_point_cloud_from_trimesh(
     vertices: &Vec<nalgebra::OPoint<f32, nalgebra::Const<3>>>,
     indices: &Vec<usize>,
     sample_per_unit: f32,
-) -> Vec<Vec3> {
+) -> Vec<(Vec3, Color)> {
     let mut vertices = vertices.clone();
 
     let indices: Vec<_> = indices
@@ -88,8 +88,14 @@ pub fn get_point_cloud_from_trimesh(
         .collect();
     let aabb =
         bounding_volume::details::point_cloud_aabb(&rapier3d::na::Isometry::default(), &vertices);
-    let trimesh =
-        TriMesh::with_flags(vertices, indices, TriMeshFlags::ORIENTED).expect("Invalid mesh");
+    let trimesh = TriMesh::with_flags(
+        vertices,
+        indices,
+        TriMeshFlags::ORIENTED
+            | TriMeshFlags::FIX_INTERNAL_EDGES
+            | TriMeshFlags::MERGE_DUPLICATE_VERTICES,
+    )
+    .expect("Invalid mesh");
     let mut positions = vec![];
 
     let aabb_sample = aabb.scaled(&Vector3::new(
@@ -103,7 +109,9 @@ pub fn get_point_cloud_from_trimesh(
                 let point = Point3::new(x as f32, y as f32, z as f32) / sample_per_unit;
                 let pos = Vec3::new(point.x, point.y, point.z);
                 if trimesh.contains_local_point(&point) {
-                    positions.push(pos);
+                    positions.push((pos, css::BLUE.into()));
+                } else {
+                    //positions.push((pos, css::RED.into()));
                 }
             }
         }
@@ -115,7 +123,7 @@ pub fn init_rapier_scene(mut commands: Commands) {
     commands.spawn((Camera3d::default(), Camera::default(), EditorCam::default()));
 
     commands.spawn(PointCloud {
-        positions: get_point_cloud(),
+        positions: get_point_cloud().iter().map(|(p, _)| *p).collect(),
     });
 
     // let decomposed_shape = SharedShape::trimesh_with_flags(vertices, indices, TriMeshFlags::FIX_INTERNAL_EDGES).unwrap()
@@ -140,7 +148,7 @@ pub fn elastic_model_demo(
     let nxz = 45;
     let cell_width = 1f32 / SAMPLE_PER_UNIT;
     let mut particles = vec![];
-    for pos in get_point_cloud() {
+    for pos in get_point_cloud().iter().map(|(p, _)| *p) {
         let radius = 1f32 / SAMPLE_PER_UNIT / 2f32;
         let density = 3700.0;
         let pos = Quat::from_axis_angle(Vec3::X, 80f32.to_radians()) * pos + Vec3::Y * 15.0;

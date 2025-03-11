@@ -43,6 +43,7 @@ bevy = { version = "0.15.0", features = [
     "shader_format_glsl",
     "shader_format_spirv",
     "webgpu",
+    "jpeg",
 ] }
 wgsparkl_testbed3d = { path = "../wgsparkl-testbed3d", features = ["dim3"] }
 obj-rs = { version = "0.7", default-features = false }
