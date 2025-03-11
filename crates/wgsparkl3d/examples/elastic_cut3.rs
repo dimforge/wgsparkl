@@ -51,6 +51,7 @@ pub fn elastic_cut_demo(
                         phase: 1.0,
                         max_stretch: f32::MAX,
                     }),
+                    color: None,
                 });
             }
         }

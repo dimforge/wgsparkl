@@ -86,16 +86,12 @@ pub fn get_point_cloud_from_trimesh(
         .chunks(3)
         .map(|idx| [idx[0] as u32, idx[1] as u32, idx[2] as u32])
         .collect();
-    let aabb =
-        bounding_volume::details::point_cloud_aabb(&rapier3d::na::Isometry::default(), &vertices);
-    let trimesh = TriMesh::with_flags(
-        vertices,
-        indices,
-        TriMeshFlags::ORIENTED
-            | TriMeshFlags::FIX_INTERNAL_EDGES
-            | TriMeshFlags::MERGE_DUPLICATE_VERTICES,
-    )
-    .expect("Invalid mesh");
+    let trimesh =
+        TriMesh::with_flags(vertices, indices, TriMeshFlags::ORIENTED).expect("Invalid mesh");
+    let aabb = bounding_volume::details::point_cloud_aabb(
+        &rapier3d::na::Isometry::default(),
+        trimesh.vertices(),
+    );
     let mut positions = vec![];
 
     let aabb_sample = aabb.scaled(&Vector3::new(
@@ -142,16 +138,25 @@ pub fn elastic_model_demo(
     device: Res<RenderDevice>,
     mut app_state: ResMut<AppState>,
 ) {
+    let point_cloud_color = get_point_cloud();
+
+    spawn_elastic_model_demo(commands, device, app_state, &point_cloud_color);
+}
+
+pub fn spawn_elastic_model_demo(
+    mut commands: Commands<'_, '_>,
+    device: Res<'_, RenderDevice>,
+    mut app_state: ResMut<'_, AppState>,
+    point_cloud_color: &Vec<(Vec3, Color)>,
+) {
+    let mut particles = vec![];
+    let cell_width = 1f32 / SAMPLE_PER_UNIT;
     let mut rapier_data = RapierData::default();
     let device = device.wgpu_device();
-
-    let nxz = 45;
-    let cell_width = 1f32 / SAMPLE_PER_UNIT;
-    let mut particles = vec![];
-    for pos in get_point_cloud().iter().map(|(p, _)| *p) {
+    for (pos, color) in point_cloud_color {
         let radius = 1f32 / SAMPLE_PER_UNIT / 2f32;
         let density = 3700.0;
-        let pos = Quat::from_axis_angle(Vec3::X, 80f32.to_radians()) * pos + Vec3::Y * 15.0;
+        let pos = *pos + Vec3::Y * 15.0;
         particles.push(Particle {
             position: pos.to_array().into(),
             dynamics: ParticleDynamics::with_density(radius, density),
@@ -161,6 +166,7 @@ pub fn elastic_model_demo(
                 phase: 1.0,
                 max_stretch: f32::MAX,
             }),
+            color: Some(color.to_linear().to_u8_array()),
         });
     }
 

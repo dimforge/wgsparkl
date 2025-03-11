@@ -176,7 +176,10 @@ fn setup_particles_graphics(
      */
     let mut instances = vec![];
     for (rb_id, particle) in physics.particles.iter().enumerate() {
-        let base_color = colors[rb_id % colors.len()].to_linear().to_f32_array();
+        let base_color = particle.color.map_or_else(
+            || colors[rb_id % colors.len()].to_linear().to_f32_array(),
+            |c| c.map(|c| c as f32 / 255f32),
+        );
         instances.push(InstanceData {
             deformation: [Vec4::X, Vec4::Y, Vec4::Z],
             #[cfg(feature = "dim2")]

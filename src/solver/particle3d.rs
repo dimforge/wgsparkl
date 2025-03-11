@@ -56,6 +56,7 @@ pub struct Particle {
     pub model: ElasticCoefficients,
     pub plasticity: Option<DruckerPrager>,
     pub phase: Option<ParticlePhase>,
+    pub color: Option<[u8; 4]>,
 }
 
 #[derive(Copy, Clone, Debug, ShaderType)]
