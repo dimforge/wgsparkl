@@ -2,6 +2,7 @@ use super::model_to_point_cloud;
 use super::model_to_point_cloud_color::load_model_trimeshes;
 use super::model_to_point_cloud_color::load_model_with_colors;
 
+use bevy::color::palettes::css;
 use bevy::{prelude::*, render::renderer::RenderDevice, scene::SceneInstanceReady};
 use nalgebra::vector;
 use nalgebra::Quaternion;
@@ -27,6 +28,7 @@ pub fn demo(
         Transform::from_scale(Vec3::splat(0.35))
             .with_translation(Vec3::Y * 2.6f32)
             .with_rotation(Quat::from_rotation_y(-90f32.to_radians())),
+        Some(css::BLANCHED_ALMOND.into()),
     );
     let params = SimulationParams {
         gravity: vector![0.0, -9.81, 0.0] * app_state.gravity_factor,
@@ -103,10 +105,10 @@ fn move_knife(app_state: Res<AppState>, knife: Query<&Knife>, mut physics: ResMu
         let body = physics.rapier_data.bodies.get_mut(knife.0).unwrap();
         let length = 1.50;
         let width = 0.5;
-        let x_pos = 5.0;
+        let x_pos = 3.0;
         let y_pos = 1.5;
         let z_pos = -1.5;
-        let velocity = 0.5;
+        let velocity = 0.8;
         let period = (2f32 * length + 3f32 * width) / velocity;
 
         let i = (t / period).floor();

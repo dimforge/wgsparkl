@@ -133,6 +133,7 @@ fn init_scene(mut commands: Commands) {
     let pc_grid = load_model_with_colors(
         "assets/shiba.glb",
         Transform::from_scale(Vec3::splat(3.0)).with_translation(Vec3::Y * 6.0),
+        None,
     );
 
     commands.spawn(PointCloud { positions: pc_grid });
@@ -140,7 +141,11 @@ fn init_scene(mut commands: Commands) {
 
 // TODO: transform should not be here, but when we spawn the model.
 // this function should have a "resolution" like the amount of points to sample in x/y/z.
-pub fn load_model_with_colors(path: &str, transform: Transform) -> Vec<(Vec3, Color)> {
+pub fn load_model_with_colors(
+    path: &str,
+    transform: Transform,
+    color_inside: Option<Color>,
+) -> Vec<(Vec3, Color)> {
     // Replace with your actual GLB file path
     let mut res = load_model_with_point_cloud(path);
     let mut pc_grid = vec![];
@@ -197,7 +202,19 @@ pub fn load_model_with_colors(path: &str, transform: Transform) -> Vec<(Vec3, Co
                 .enumerate()
                 .map(|(i, (p, color))| {
                     let closest_color = closest_point(p, &res.0).unwrap();
-                    (p, closest_color.1)
+                    if let Some(color_inside) = color_inside {
+                        let distance = p.distance(closest_color.0);
+                        (
+                            p,
+                            if distance <= 0.2 {
+                                closest_color.1
+                            } else {
+                                color_inside
+                            },
+                        )
+                    } else {
+                        (p, closest_color.1)
+                    }
                 })
                 .collect();
         pc_grid.append(&mut pc);
@@ -213,6 +230,7 @@ pub fn elastic_color_model_demo(
     let pc_grid = load_model_with_colors(
         "assets/shiba.glb",
         Transform::from_scale(Vec3::splat(3.0)).with_translation(Vec3::Y * 6.0),
+        None,
     );
     let params = SimulationParams {
         gravity: vector![0.0, -9.81, 0.0] * app_state.gravity_factor,
