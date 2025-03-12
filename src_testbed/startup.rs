@@ -47,6 +47,7 @@ pub fn setup_app(mut commands: Commands, device: Res<RenderDevice>) {
         selected_scene: 0,
         hot_reload,
         show_rigid_particles: false,
+        physics_time_seconds: 0.0,
     });
     commands.init_resource::<RenderContext>();
 
@@ -287,4 +288,8 @@ pub fn setup_graphics(
         &mut materials,
         &to_clear,
     );
+}
+
+pub fn setup_app_state(mut app_state: ResMut<AppState>) {
+    app_state.physics_time_seconds = 0.0;
 }

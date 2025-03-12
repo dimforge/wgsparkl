@@ -217,6 +217,7 @@ pub fn step_simulation_legacy(
         &(),
         &(),
     );
+    app_state.physics_time_seconds += params.dt as f64;
 
     if let Some(timestamps) = std::mem::take(&mut timings.timestamps) {
         let timings_snd = timings_channel.snd.clone();
