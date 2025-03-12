@@ -11,10 +11,11 @@ use wgsparkl::{
 };
 use wgsparkl_testbed3d::{init_testbed, AppState, PhysicsContext, SceneInits};
 
+mod banana;
 mod elastic_cut3;
 mod heightfield3;
 pub mod model_to_point_cloud;
-mod model_to_point_cloud_color;
+pub mod model_to_point_cloud_color;
 mod sand3;
 
 pub fn main() {
@@ -45,8 +46,12 @@ fn register_scenes(world: &mut World) {
             world.register_system(model_to_point_cloud::elastic_model_demo),
         ),
         (
-            "elastic_model".to_string(),
+            "elastic_model_colors".to_string(),
             world.register_system(model_to_point_cloud_color::elastic_color_model_demo),
+        ),
+        (
+            "taichi_banana".to_string(),
+            world.register_system(banana::demo),
         ),
     ];
     let mut inits = world.resource_mut::<SceneInits>();
