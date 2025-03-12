@@ -140,15 +140,21 @@ pub fn elastic_model_demo(
 ) {
     let point_cloud_color = get_point_cloud();
 
-    spawn_elastic_model_demo(commands, device, app_state, &point_cloud_color);
+    let physics_context = spawn_elastic_model_demo(device, app_state, &point_cloud_color);
+    commands.insert_resource(physics_context);
 }
 
+/// This initializes a scene with a model made of particles.
+///
+/// Usage:
+/// ```
+/// commands.insert_resource(spawn_elastic_model_demo(...));
+/// ```
 pub fn spawn_elastic_model_demo(
-    mut commands: Commands<'_, '_>,
     device: Res<'_, RenderDevice>,
     mut app_state: ResMut<'_, AppState>,
     point_cloud_color: &Vec<(Vec3, Color)>,
-) {
+) -> PhysicsContext {
     let mut particles = vec![];
     let cell_width = 1f32 / SAMPLE_PER_UNIT;
     let mut rapier_data = RapierData::default();
@@ -156,7 +162,6 @@ pub fn spawn_elastic_model_demo(
     for (pos, color) in point_cloud_color {
         let radius = 1f32 / SAMPLE_PER_UNIT / 2f32;
         let density = 3700.0;
-        let pos = *pos + Vec3::Y * 15.0;
         particles.push(Particle {
             position: pos.to_array().into(),
             dynamics: ParticleDynamics::with_density(radius, density),
@@ -211,9 +216,9 @@ pub fn spawn_elastic_model_demo(
         cell_width,
         60_000,
     );
-    commands.insert_resource(PhysicsContext {
+    PhysicsContext {
         data,
         rapier_data,
         particles,
-    });
+    }
 }

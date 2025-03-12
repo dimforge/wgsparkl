@@ -129,15 +129,19 @@ fn init_scene(mut commands: Commands) {
         },
     ));
 
-    let pc_grid = load_model_with_colors();
+    let pc_grid = load_model_with_colors(
+        "assets/shiba.glb",
+        Transform::from_scale(Vec3::splat(3.0)).with_translation(Vec3::Y * 6.0),
+    );
 
     commands.spawn(PointCloud { positions: pc_grid });
 }
 
-fn load_model_with_colors() -> Vec<(Vec3, Color)> {
-    let path = "assets/shiba.glb";
+// TODO: transform should not be here, but when we spawn the model.
+// this function should have a "resolution" like the amount of points to sample in x/y/z.
+pub fn load_model_with_colors(path: &str, transform: Transform) -> Vec<(Vec3, Color)> {
     // Replace with your actual GLB file path
-    let mut res = load_model(path);
+    let mut res = load_model_with_point_cloud(path);
     let mut pc_grid = vec![];
 
     let colors = [
@@ -157,8 +161,9 @@ fn load_model_with_colors() -> Vec<(Vec3, Color)> {
     //     SceneRoot(asset_server.load(GltfAssetLabel::Scene(0).from_asset("car/scene.gltf"))),
     // ));
 
-    let scale = 3.0;
-    res.0.iter_mut().for_each(|p| p.0 *= scale);
+    res.0
+        .iter_mut()
+        .for_each(|p| p.0 = transform.transform_point(p.0));
 
     for (t_id, mut trimesh) in res.1.iter_mut().enumerate() {
         if t_id != 0 {
@@ -181,7 +186,10 @@ fn load_model_with_colors() -> Vec<(Vec3, Color)> {
         mesh.duplicate_vertices();
         mesh.compute_flat_normals();
 
-        trimesh.0.iter_mut().for_each(|p| *p *= scale);
+        trimesh.0.iter_mut().for_each(|p| {
+            let new_p = transform.transform_point(Vec3::new(p.x, p.y, p.z));
+            *p = Point3::new(new_p.x, new_p.y, new_p.z);
+        });
         let mut pc =
             model_to_point_cloud::get_point_cloud_from_trimesh(&trimesh.0, &trimesh.1, 18.0)
                 .into_iter()
@@ -201,13 +209,13 @@ pub fn elastic_color_model_demo(
     device: Res<RenderDevice>,
     mut app_state: ResMut<AppState>,
 ) {
-    let pc_grid = load_model_with_colors();
-    model_to_point_cloud::spawn_elastic_model_demo(
-        commands.reborrow(),
-        device,
-        app_state,
-        &pc_grid,
+    let pc_grid = load_model_with_colors(
+        "assets/shiba.glb",
+        Transform::from_scale(Vec3::splat(3.0)).with_translation(Vec3::Y * 6.0),
     );
+    commands.insert_resource(model_to_point_cloud::spawn_elastic_model_demo(
+        device, app_state, &pc_grid,
+    ));
 }
 
 fn display_point_cloud(mut pcs: Query<&PointCloud>, mut gizmos: Gizmos) {
@@ -218,7 +226,60 @@ fn display_point_cloud(mut pcs: Query<&PointCloud>, mut gizmos: Gizmos) {
     }
 }
 
-fn load_model(
+fn get_node_transform(node: &gltf::Node, parent_transform: Matrix4<f32>) -> Matrix4<f32> {
+    let matrix = node.transform().matrix();
+    parent_transform * Matrix4::from_column_slice(&matrix.concat())
+}
+
+struct SceneIterator<'a, T, F>
+where
+    F: Fn(&gltf::Primitive, &Matrix4<f32>) -> T + 'a,
+{
+    stack: Vec<(gltf::Node<'a>, Matrix4<f32>)>,
+    process_primitive: F,
+}
+
+impl<'a, T, F> SceneIterator<'a, T, F>
+where
+    F: Fn(&gltf::Primitive, &Matrix4<f32>) -> T + 'a,
+{
+    fn new(root_nodes: Vec<gltf::Node<'a>>, process_primitive: F) -> Self {
+        let stack = root_nodes
+            .into_iter()
+            .map(|node| (node, Matrix4::identity()))
+            .collect();
+        SceneIterator {
+            stack,
+            process_primitive,
+        }
+    }
+}
+
+impl<'a, T, F> Iterator for SceneIterator<'a, T, F>
+where
+    F: Fn(&gltf::Primitive, &Matrix4<f32>) -> T + 'a,
+{
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while let Some((node, parent_transform)) = self.stack.pop() {
+            let world_transform = get_node_transform(&node, parent_transform);
+
+            if let Some(mesh) = node.mesh() {
+                for primitive in mesh.primitives() {
+                    return Some((self.process_primitive)(&primitive, &world_transform));
+                }
+            }
+
+            for child in node.children() {
+                self.stack.push((child, world_transform));
+            }
+        }
+        None
+    }
+}
+
+fn load_model_with_point_cloud(
     path: &str,
 ) -> (
     Vec<(Vec3, Color)>,
@@ -235,52 +296,19 @@ fn load_model(
 
     let mut pcs = vec![];
     let mut trimeshes = vec![];
+
     for scene in gltf.scenes() {
-        for node in scene.nodes() {
-            let mut res = recurse_inspect_scene(&buffers, &texture, node, Matrix4::identity());
-            pcs.append(&mut res.0);
-            trimeshes.append(&mut res.1);
-        }
-    }
-
-    (pcs, trimeshes)
-}
-
-fn get_node_transform(node: &gltf::Node, parent_transform: Matrix4<f32>) -> Matrix4<f32> {
-    let matrix = node.transform().matrix();
-    parent_transform * Matrix4::from_column_slice(&matrix.concat())
-}
-
-fn recurse_inspect_scene(
-    buffers: &Vec<gltf::buffer::Data>,
-    texture: &image::ImageBuffer<image::Rgba<u8>, Vec<u8>>,
-    node: gltf::Node<'_>,
-    parent_transform: Matrix4<f32>,
-) -> (
-    Vec<(Vec3, Color)>,
-    Vec<(Vec<nalgebra::Point3<f32>>, Vec<usize>)>,
-) {
-    dbg!(node.name());
-    let world_transform = get_node_transform(&node, parent_transform);
-    let mut point_cloud = vec![];
-    let mut trimeshes = vec![];
-    if let Some(mesh) = node.mesh() {
-        dbg!(mesh.name());
-        for primitive in mesh.primitives() {
+        let iterator = SceneIterator::new(scene.nodes().collect(), |primitive, world_transform| {
             let reader = primitive.reader(|buffer| Some(&*buffers[buffer.index()].0));
 
-            if let (Some(positions), Some(tex_coords)) =
+            let mut point_cloud = vec![];
+            let mut positions = vec![];
+
+            if let (Some(positions_iter), Some(tex_coords)) =
                 (reader.read_positions(), reader.read_tex_coords(0))
             {
-                let mut vertex_data = Vec::new();
-
-                for (pos, uv) in positions.zip(tex_coords.into_f32()) {
-                    let color = sample_texture(texture, uv);
-                    vertex_data.push((pos, color));
-                }
-
-                let mut positions = vec![];
-                for (i, (pos, color)) in vertex_data.iter().enumerate() {
+                for (pos, uv) in positions_iter.zip(tex_coords.into_f32()) {
+                    let color = sample_texture(&texture, uv);
                     let position = Point3::new(pos[0], pos[1], pos[2]);
                     let transformed = world_transform.transform_point(&position);
                     point_cloud.push((
@@ -292,26 +320,70 @@ fn recurse_inspect_scene(
                             color[3] as f32 / 255f32,
                         ),
                     ));
-
                     positions.push(transformed);
                 }
-                // read indices
+
                 let indices = reader
                     .read_indices()
                     .expect("No indices found")
                     .into_u32()
                     .map(|i| i as usize)
                     .collect::<Vec<_>>();
-                trimeshes.push((positions, indices));
+
+                (point_cloud, (positions, indices))
             } else {
-                println!("No UV coordinates or positions found.");
+                (vec![], (vec![], vec![]))
             }
+        });
+
+        for (pc, trimesh) in iterator {
+            pcs.extend(pc);
+            trimeshes.push(trimesh);
         }
     }
-    for child in node.children() {
-        let mut res = recurse_inspect_scene(buffers, texture, child, world_transform);
-        point_cloud.append(&mut res.0);
-        trimeshes.append(&mut res.1);
+
+    (pcs, trimeshes)
+}
+
+pub fn load_model_trimeshes(path: &str) -> Vec<(Vec<nalgebra::Point3<f32>>, Vec<usize>)> {
+    let mut file = File::open(path).expect("Failed to open GLB file");
+    let mut buffer = Vec::new();
+    file.read_to_end(&mut buffer).expect("Failed to read file");
+
+    let (gltf, buffers, _) = gltf::import_slice(&buffer).expect("Failed to parse GLB");
+
+    let mut trimeshes = vec![];
+
+    for scene in gltf.scenes() {
+        let iterator = SceneIterator::new(scene.nodes().collect(), |primitive, world_transform| {
+            let reader = primitive.reader(|buffer| Some(&*buffers[buffer.index()].0));
+
+            let mut positions = vec![];
+
+            if let Some(positions_iter) = reader.read_positions() {
+                for pos in positions_iter {
+                    let position = Point3::new(pos[0], pos[1], pos[2]);
+                    let transformed = world_transform.transform_point(&position);
+                    positions.push(transformed);
+                }
+
+                let indices = reader
+                    .read_indices()
+                    .expect("No indices found")
+                    .into_u32()
+                    .map(|i| i as usize)
+                    .collect::<Vec<_>>();
+
+                (positions, indices)
+            } else {
+                (vec![], vec![])
+            }
+        });
+
+        for trimesh in iterator {
+            trimeshes.push(trimesh);
+        }
     }
-    (point_cloud, trimeshes)
+
+    trimeshes
 }
