@@ -3,4 +3,6 @@
 - Shiba from zixisun02 at https://sketchfab.com/3d-models/shiba-faef9fe5ace445e7b2989d1c1ece361c
 - Banana from ReCo_3D at https://sketchfab.com/3d-models/banana-ed0537c2201d4ad7b8ddb8368d844174
 - Chef's knife from Davide Specchi at https://sketchfab.com/3d-models/chefs-knife-85ededce157545e68e51fa87768a08cb
-  - modifications: set origin to the middle of the blade + rotated so blade is facing Y down.
+  - modifications:
+    - set origin to the middle of the blade + rotated so blade is facing Y down.
+    - inverted faces on a blade side to properly cut
