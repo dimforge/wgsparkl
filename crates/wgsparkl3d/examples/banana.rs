@@ -36,7 +36,7 @@ pub fn demo(
     let particles =
         model_to_point_cloud::spawn_elastic_model_demo(app_state, &pc_grid, &mut rapier_data);
     // Slicer
-    let mut slicer_trimeshes = load_model_trimeshes("assets/chefs_knife_modified.glb");
+    let mut slicer_trimeshes = load_model_trimeshes("assets/chefs_knife_open_blade.glb");
     slicer_trimeshes.iter_mut().for_each(|trimesh| {
         trimesh.0.iter_mut().for_each(|v| {
             *v *= 10f32;
@@ -132,7 +132,6 @@ fn move_knife(time: Res<Time>, knife: Query<&Knife>, mut physics: ResMut<Physics
         };
 
         body.set_translation(new_pos, true);
-        println!("Knife position: {:?}", body.position());
     }
 }
 

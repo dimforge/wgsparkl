@@ -1,6 +1,6 @@
 use crate::instancing::InstanceMaterialData;
 use crate::startup::RigidParticlesTag;
-use crate::{AppState, PhysicsContext, RunState, Timestamps};
+use crate::{AppState, CallBeforeSimulation, PhysicsContext, RunState, Timestamps};
 use async_channel::{Receiver, Sender};
 use bevy::prelude::*;
 use bevy::render::renderer::{RenderDevice, RenderQueue};
@@ -17,6 +17,12 @@ use wgsparkl::wgrapier::dynamics::GpuVelocity;
 pub struct TimestampChannel {
     pub snd: Sender<Timestamps>,
     pub rcv: Receiver<Timestamps>,
+}
+
+pub fn call_before_simulation(mut commands: Commands, to_call: Query<&CallBeforeSimulation>) {
+    for to_call in to_call.iter() {
+        commands.run_system(to_call.0);
+    }
 }
 
 pub fn step_simulation(
@@ -53,10 +59,6 @@ pub fn step_simulation_legacy(
     rigid_particles: &Query<&InstanceMaterialData, With<RigidParticlesTag>>,
     timings_channel: &TimestampChannel,
 ) {
-    if app_state.run_state == RunState::Paused {
-        return;
-    }
-
     let timings = &mut *timings;
 
     while let Ok(new_timings) = timings_channel.rcv.try_recv() {

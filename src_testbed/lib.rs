@@ -25,7 +25,7 @@ pub mod step;
 pub mod ui;
 
 use bevy::asset::load_internal_asset;
-use bevy::ecs::system::SystemId;
+use bevy::ecs::system::{BoxedSystem, SystemId};
 use bevy::pbr::wireframe::WireframePlugin;
 use bevy::prelude::*;
 use bevy_editor_cam::prelude::DefaultEditorCamPlugins;
@@ -61,7 +61,9 @@ pub fn init_testbed(app: &mut App) {
             Update,
             (
                 ui::update_ui,
-                step::step_simulation,
+                (step::call_before_simulation, step::step_simulation)
+                    .chain()
+                    .run_if(|state: Res<AppState>| state.run_state != RunState::Paused),
                 rigid_graphics::update_rigid_graphics,
                 hot_reload::handle_hot_reloading,
             )
@@ -101,6 +103,9 @@ pub struct AppState {
     pub hot_reload: HotReloadState,
     pub show_rigid_particles: bool,
 }
+
+#[derive(Component)]
+pub struct CallBeforeSimulation(pub SystemId);
 
 pub use wgsparkl::rapier::prelude::PhysicsContext as RapierData;
 
