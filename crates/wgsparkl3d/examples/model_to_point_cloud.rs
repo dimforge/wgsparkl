@@ -32,7 +32,7 @@ pub struct PointCloud {
     pub positions: Vec<Vec3>,
 }
 
-const SAMPLE_PER_UNIT: f32 = 10.0;
+pub const SAMPLE_PER_UNIT: f32 = 10.0;
 
 pub fn get_point_cloud() -> Vec<(Vec3, Color)> {
     let obj_path = "assets/camel_decimated.obj";
@@ -140,25 +140,65 @@ pub fn elastic_model_demo(
 ) {
     let point_cloud_color = get_point_cloud();
 
-    let physics_context = spawn_elastic_model_demo(device, app_state, &point_cloud_color);
-    commands.insert_resource(physics_context);
+    let params = SimulationParams {
+        gravity: vector![0.0, -9.81, 0.0] * app_state.gravity_factor,
+        dt: (1.0 / 60.0) / (app_state.num_substeps as f32),
+    };
+    let mut rapier_data = RapierData::default();
+    let particles = spawn_elastic_model_demo(app_state, &point_cloud_color, &mut rapier_data);
+    let data = MpmData::new(
+        device.wgpu_device(),
+        params,
+        &particles,
+        &rapier_data.bodies,
+        &rapier_data.colliders,
+        1f32 / SAMPLE_PER_UNIT,
+        60_000,
+    );
+
+    let physics = PhysicsContext {
+        data,
+        rapier_data,
+        particles,
+    };
+    commands.insert_resource(physics);
 }
 
 /// This initializes a scene with a model made of particles.
 ///
 /// Usage:
+///
 /// ```
-/// commands.insert_resource(spawn_elastic_model_demo(...));
+/// let params = SimulationParams {
+///     gravity: vector![0.0, -9.81, 0.0] * app_state.gravity_factor,
+///     dt: (1.0 / 60.0) / (app_state.num_substeps as f32),
+/// };
+/// let mut rapier_data = RapierData::default();
+/// let particles =
+///     model_to_point_cloud::spawn_elastic_model_demo(app_state, &pc_grid, &mut rapier_data);
+/// let data = MpmData::new(
+///     device.wgpu_device(),
+///     params,
+///     &particles,
+///     &rapier_data.bodies,
+///     &rapier_data.colliders,
+///     1f32 / model_to_point_cloud::SAMPLE_PER_UNIT,
+///     60_000,
+/// );
+///
+/// let physics = PhysicsContext {
+///     data,
+///     rapier_data,
+///     particles,
+/// };
+/// commands.insert_resource(physics);
 /// ```
 pub fn spawn_elastic_model_demo(
-    device: Res<'_, RenderDevice>,
     mut app_state: ResMut<'_, AppState>,
     point_cloud_color: &Vec<(Vec3, Color)>,
-) -> PhysicsContext {
+    rapier_data: &mut RapierData,
+) -> Vec<Particle> {
     let mut particles = vec![];
-    let cell_width = 1f32 / SAMPLE_PER_UNIT;
-    let mut rapier_data = RapierData::default();
-    let device = device.wgpu_device();
     for (pos, color) in point_cloud_color {
         let radius = 1f32 / SAMPLE_PER_UNIT / 2f32;
         let density = 3700.0;
@@ -178,11 +218,6 @@ pub fn spawn_elastic_model_demo(
     if !app_state.restarting {
         app_state.num_substeps = 20;
         app_state.gravity_factor = 1.0;
-    };
-
-    let params = SimulationParams {
-        gravity: vector![0.0, -9.81, 0.0] * app_state.gravity_factor,
-        dt: (1.0 / 60.0) / (app_state.num_substeps as f32),
     };
 
     rapier_data.insert_body_and_collider(
@@ -207,18 +242,5 @@ pub fn spawn_elastic_model_demo(
         ColliderBuilder::cuboid(0.5, 5.0, 35.0),
     );
 
-    let data = MpmData::new(
-        device,
-        params,
-        &particles,
-        &rapier_data.bodies,
-        &rapier_data.colliders,
-        cell_width,
-        60_000,
-    );
-    PhysicsContext {
-        data,
-        rapier_data,
-        particles,
-    }
+    particles
 }
