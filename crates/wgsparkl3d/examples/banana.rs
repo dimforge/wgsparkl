@@ -6,11 +6,13 @@ use bevy::{prelude::*, render::renderer::RenderDevice, scene::SceneInstanceReady
 use nalgebra::vector;
 use nalgebra::Quaternion;
 use nalgebra::Rotation;
+use rapier3d::prelude::RigidBodyHandle;
 use rapier3d::prelude::{ColliderBuilder, RigidBodyBuilder, SharedShape, TriMeshFlags};
 use wgrapier3d::dynamics::body::BodyCoupling;
 use wgrapier3d::dynamics::body::BodyCouplingEntry;
 use wgsparkl3d::pipeline::MpmData;
 use wgsparkl3d::solver::SimulationParams;
+use wgsparkl_testbed3d::CallBeforeSimulation;
 use wgsparkl_testbed3d::RapierData;
 use wgsparkl_testbed3d::{AppState, PhysicsContext};
 
@@ -22,7 +24,9 @@ pub fn demo(
 ) {
     let pc_grid = load_model_with_colors(
         "assets/banana.glb",
-        Transform::from_scale(Vec3::splat(0.35)).with_translation(Vec3::Y * 5f32),
+        Transform::from_scale(Vec3::splat(0.35))
+            .with_translation(Vec3::Y * 5f32)
+            .with_rotation(Quat::from_rotation_y(-90f32.to_radians())),
     );
     let params = SimulationParams {
         gravity: vector![0.0, -9.81, 0.0] * app_state.gravity_factor,
@@ -36,11 +40,10 @@ pub fn demo(
     slicer_trimeshes.iter_mut().for_each(|trimesh| {
         trimesh.0.iter_mut().for_each(|v| {
             *v *= 10f32;
-            *v = Rotation::from_axis_angle(&nalgebra::Vector3::y_axis(), 90f32.to_radians()) * *v;
         });
     });
 
-    let rb = RigidBodyBuilder::dynamic().translation(vector![0.0, 5.0, 0.0]);
+    let rb = RigidBodyBuilder::kinematic_position_based().translation(vector![0.0, 5.0, 0.0]);
     let parent_handle = rapier_data.bodies.insert(rb);
     for (vertices, indices) in slicer_trimeshes.iter() {
         // Insert collider into rapier state.
@@ -60,15 +63,13 @@ pub fn demo(
             .colliders
             .insert_with_parent(collider, parent_handle, &mut rapier_data.bodies);
     }
-
     commands.spawn((
+        Knife(parent_handle),
         SceneRoot(
             // This is a bit redundant with load_model_trimeshes, but it's a simple way to get the scene loaded visually.
             asset_server.load(GltfAssetLabel::Scene(0).from_asset("chefs_knife_modified.glb")),
         ),
-        Transform::from_scale(Vec3::splat(10f32))
-            .with_rotation(Quat::from_axis_angle(Vec3::Y, 90f32.to_radians()))
-            .with_translation(Vec3::Y * 5f32),
+        Transform::from_scale(Vec3::splat(10f32)).with_translation(Vec3::Y * 5f32),
     ));
 
     let data = MpmData::new(
@@ -88,6 +89,51 @@ pub fn demo(
     };
     commands.insert_resource(physics);
     //
+    let system_id = commands.register_system(move_knife);
+    commands.spawn(CallBeforeSimulation(system_id));
+}
+
+#[derive(Debug, Component)]
+pub struct Knife(pub RigidBodyHandle);
+
+fn move_knife(time: Res<Time>, knife: Query<&Knife>, mut physics: ResMut<PhysicsContext>) {
+    for knife in knife.iter() {
+        let t = time.elapsed_secs();
+
+        let body = physics.rapier_data.bodies.get_mut(knife.0).unwrap();
+        let length = 1.50;
+        let width = 0.5;
+        let x_pos = 1.0;
+        let y_pos = 1.5;
+        let z_pos = 0.0;
+        let velocity = 0.5;
+        let period = (2f32 * length + 3f32 * width) / velocity;
+
+        let t = time.elapsed_secs();
+        let i = (t / period).floor();
+        let dis = velocity * (t - period * i);
+
+        let new_pos = if dis < length {
+            vector![x_pos - width * i, y_pos - dis, z_pos]
+        } else if length <= dis && dis < length + width {
+            vector![x_pos - width * i + (dis - length), y_pos - length, z_pos]
+        } else if length + width <= dis && dis < 2f32 * length + width {
+            vector![
+                x_pos - width * i + width,
+                y_pos - (2.0 * length + width - dis),
+                z_pos
+            ]
+        } else {
+            vector![
+                x_pos - width * i + width - (dis - 2.0 * length - width),
+                y_pos,
+                z_pos
+            ]
+        };
+
+        body.set_translation(new_pos, true);
+        println!("Knife position: {:?}", body.position());
+    }
 }
 
 mod follow_rapier {
