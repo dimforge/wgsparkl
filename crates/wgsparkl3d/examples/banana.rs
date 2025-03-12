@@ -9,6 +9,9 @@ use nalgebra::Rotation;
 use rapier3d::prelude::{ColliderBuilder, RigidBodyBuilder, SharedShape, TriMeshFlags};
 use wgrapier3d::dynamics::body::BodyCoupling;
 use wgrapier3d::dynamics::body::BodyCouplingEntry;
+use wgsparkl3d::pipeline::MpmData;
+use wgsparkl3d::solver::SimulationParams;
+use wgsparkl_testbed3d::RapierData;
 use wgsparkl_testbed3d::{AppState, PhysicsContext};
 
 pub fn demo(
@@ -21,11 +24,13 @@ pub fn demo(
         "assets/banana.glb",
         Transform::from_scale(Vec3::splat(0.35)).with_translation(Vec3::Y * 5f32),
     );
-    let mut physics = model_to_point_cloud::spawn_elastic_model_demo(
-        device, app_state,
-        &pc_grid,
-        //Transform::from_scale(Vec3::splat(3.0)).with_translation(Vec3::Y * 1.0),
-    );
+    let params = SimulationParams {
+        gravity: vector![0.0, -9.81, 0.0] * app_state.gravity_factor,
+        dt: (1.0 / 60.0) / (app_state.num_substeps as f32),
+    };
+    let mut rapier_data = RapierData::default();
+    let particles =
+        model_to_point_cloud::spawn_elastic_model_demo(app_state, &pc_grid, &mut rapier_data);
     // Slicer
     let mut slicer_trimeshes = load_model_trimeshes("assets/chefs_knife_modified.glb");
     slicer_trimeshes.iter_mut().for_each(|trimesh| {
@@ -34,12 +39,10 @@ pub fn demo(
             *v = Rotation::from_axis_angle(&nalgebra::Vector3::y_axis(), 90f32.to_radians()) * *v;
         });
     });
-    let rapier_data = &mut physics.rapier_data;
 
     let rb = RigidBodyBuilder::dynamic().translation(vector![0.0, 5.0, 0.0]);
     let parent_handle = rapier_data.bodies.insert(rb);
-    let mut coupling = vec![];
-    for (vertices, indices) in slicer_trimeshes.iter().skip(2) {
+    for (vertices, indices) in slicer_trimeshes.iter() {
         // Insert collider into rapier state.
 
         let collider = ColliderBuilder::new(
@@ -53,14 +56,11 @@ pub fn demo(
             )
             .unwrap(),
         );
-        coupling.push(rapier_data.colliders.insert_with_parent(
-            collider,
-            parent_handle,
-            &mut rapier_data.bodies,
-        ));
-        break;
+        rapier_data
+            .colliders
+            .insert_with_parent(collider, parent_handle, &mut rapier_data.bodies);
     }
-    /*
+
     commands.spawn((
         SceneRoot(
             // This is a bit redundant with load_model_trimeshes, but it's a simple way to get the scene loaded visually.
@@ -69,24 +69,23 @@ pub fn demo(
         Transform::from_scale(Vec3::splat(10f32))
             .with_rotation(Quat::from_axis_angle(Vec3::Y, 90f32.to_radians()))
             .with_translation(Vec3::Y * 5f32),
-    ));*/
+    ));
 
-    let mut coupling: Vec<_> = coupling
-        .iter()
-        .map(|co_handle| {
-            let co = &rapier_data.colliders[*co_handle];
-            let rb_handle = co.parent().unwrap();
-            BodyCouplingEntry {
-                body: rb_handle,
-                collider: co_handle.clone(),
-                mode: BodyCoupling::OneWay,
-            }
-        })
-        .collect();
-    dbg!(&coupling);
-    // FIXME: this doesn't work yet because the coupling cannot be changed now, coupling should be private and spawn_elastic_model_demo updated.
-    // physics.data.coupling.append(&mut coupling);
+    let data = MpmData::new(
+        device.wgpu_device(),
+        params,
+        &particles,
+        &rapier_data.bodies,
+        &rapier_data.colliders,
+        1f32 / model_to_point_cloud::SAMPLE_PER_UNIT,
+        60_000,
+    );
 
+    let physics = PhysicsContext {
+        data,
+        rapier_data,
+        particles,
+    };
     commands.insert_resource(physics);
     //
 }

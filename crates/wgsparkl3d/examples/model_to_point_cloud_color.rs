@@ -30,10 +30,11 @@ use bevy::{
 };
 use bevy_editor_cam::{prelude::EditorCam, DefaultEditorCamPlugins};
 use image::RgbaImage;
-use nalgebra::{Matrix4, Point3, Vector3};
+use nalgebra::{vector, Matrix4, Point3, Vector3};
 use std::{f32::consts::PI, fs::File, io::Read};
 use wgpu::{Features, PrimitiveTopology};
-use wgsparkl_testbed3d::AppState;
+use wgsparkl3d::{pipeline::MpmData, solver::SimulationParams};
+use wgsparkl_testbed3d::{AppState, PhysicsContext, RapierData};
 
 fn extract_embedded_texture<'a>(
     gltf: &gltf::Document,
@@ -191,7 +192,7 @@ pub fn load_model_with_colors(path: &str, transform: Transform) -> Vec<(Vec3, Co
             *p = Point3::new(new_p.x, new_p.y, new_p.z);
         });
         let mut pc =
-            model_to_point_cloud::get_point_cloud_from_trimesh(&trimesh.0, &trimesh.1, 18.0)
+            model_to_point_cloud::get_point_cloud_from_trimesh(&trimesh.0, &trimesh.1, 10.0)
                 .into_iter()
                 .enumerate()
                 .map(|(i, (p, color))| {
@@ -213,9 +214,29 @@ pub fn elastic_color_model_demo(
         "assets/shiba.glb",
         Transform::from_scale(Vec3::splat(3.0)).with_translation(Vec3::Y * 6.0),
     );
-    commands.insert_resource(model_to_point_cloud::spawn_elastic_model_demo(
-        device, app_state, &pc_grid,
-    ));
+    let params = SimulationParams {
+        gravity: vector![0.0, -9.81, 0.0] * app_state.gravity_factor,
+        dt: (1.0 / 60.0) / (app_state.num_substeps as f32),
+    };
+    let mut rapier_data = RapierData::default();
+    let particles =
+        model_to_point_cloud::spawn_elastic_model_demo(app_state, &pc_grid, &mut rapier_data);
+    let data = MpmData::new(
+        device.wgpu_device(),
+        params,
+        &particles,
+        &rapier_data.bodies,
+        &rapier_data.colliders,
+        1f32 / model_to_point_cloud::SAMPLE_PER_UNIT,
+        60_000,
+    );
+
+    let physics = PhysicsContext {
+        data,
+        rapier_data,
+        particles,
+    };
+    commands.insert_resource(physics);
 }
 
 fn display_point_cloud(mut pcs: Query<&PointCloud>, mut gizmos: Gizmos) {
