@@ -102,6 +102,7 @@ pub struct AppState {
     pub selected_scene: usize,
     pub hot_reload: HotReloadState,
     pub show_rigid_particles: bool,
+    pub physics_time_seconds: f64,
 }
 
 #[derive(Component)]
@@ -164,10 +165,12 @@ pub enum RunState {
 pub struct SceneInits {
     pub scenes: Vec<(String, SystemId)>,
     reset_graphics: SystemId,
+    reset_app_state: SystemId,
 }
 
 impl SceneInits {
     pub fn init_scene(&self, commands: &mut Commands, scene_id: usize) {
+        commands.run_system(self.reset_app_state);
         commands.run_system(self.scenes[scene_id].1);
         commands.run_system(self.reset_graphics);
     }
@@ -178,6 +181,7 @@ impl FromWorld for SceneInits {
         Self {
             scenes: vec![],
             reset_graphics: world.register_system(startup::setup_graphics),
+            reset_app_state: world.register_system(startup::setup_app_state),
         }
     }
 }

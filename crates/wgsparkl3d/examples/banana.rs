@@ -25,7 +25,7 @@ pub fn demo(
     let pc_grid = load_model_with_colors(
         "assets/banana.glb",
         Transform::from_scale(Vec3::splat(0.35))
-            .with_translation(Vec3::Y * 5f32)
+            .with_translation(Vec3::Y * 2.6f32)
             .with_rotation(Quat::from_rotation_y(-90f32.to_radians())),
     );
     let params = SimulationParams {
@@ -96,20 +96,19 @@ pub fn demo(
 #[derive(Debug, Component)]
 pub struct Knife(pub RigidBodyHandle);
 
-fn move_knife(time: Res<Time>, knife: Query<&Knife>, mut physics: ResMut<PhysicsContext>) {
+fn move_knife(app_state: Res<AppState>, knife: Query<&Knife>, mut physics: ResMut<PhysicsContext>) {
     for knife in knife.iter() {
-        let t = time.elapsed_secs();
+        let t = app_state.physics_time_seconds as f32;
 
         let body = physics.rapier_data.bodies.get_mut(knife.0).unwrap();
         let length = 1.50;
         let width = 0.5;
-        let x_pos = 1.0;
+        let x_pos = 5.0;
         let y_pos = 1.5;
-        let z_pos = 0.0;
+        let z_pos = -1.5;
         let velocity = 0.5;
         let period = (2f32 * length + 3f32 * width) / velocity;
 
-        let t = time.elapsed_secs();
         let i = (t / period).floor();
         let dis = velocity * (t - period * i);
 
