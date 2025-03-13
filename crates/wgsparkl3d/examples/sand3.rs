@@ -12,11 +12,6 @@ use wgsparkl::{
 };
 use wgsparkl_testbed3d::{AppState, PhysicsContext};
 
-#[allow(dead_code)]
-fn main() {
-    panic!("Run the `testbed3` example instead.");
-}
-
 pub fn sand_demo(
     mut commands: Commands,
     device: Res<RenderDevice>,

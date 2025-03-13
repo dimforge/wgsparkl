@@ -1,16 +1,20 @@
-use super::model_to_point_cloud;
-use super::model_to_point_cloud_color::load_model_trimeshes;
-use super::model_to_point_cloud_color::load_model_with_colors;
+#![allow(unused)]
+
+#[path = "libs/default_scene.rs"]
+pub mod default_scene;
+#[path = "libs/extract_mesh.rs"]
+pub mod extract_mesh;
+#[path = "libs/glb_to_point_cloud.rs"]
+pub mod glb_to_point_cloud;
+
+use glb_to_point_cloud::load_model_trimeshes;
+use glb_to_point_cloud::load_model_with_colors;
 
 use bevy::color::palettes::css;
 use bevy::{prelude::*, render::renderer::RenderDevice, scene::SceneInstanceReady};
 use nalgebra::vector;
-use nalgebra::Quaternion;
-use nalgebra::Rotation;
 use rapier3d::prelude::RigidBodyHandle;
 use rapier3d::prelude::{ColliderBuilder, RigidBodyBuilder, SharedShape, TriMeshFlags};
-use wgrapier3d::dynamics::body::BodyCoupling;
-use wgrapier3d::dynamics::body::BodyCouplingEntry;
 use wgsparkl3d::pipeline::MpmData;
 use wgsparkl3d::solver::SimulationParams;
 use wgsparkl_testbed3d::CallBeforeSimulation;
@@ -35,8 +39,14 @@ pub fn demo(
         dt: (1.0 / 60.0) / (app_state.num_substeps as f32),
     };
     let mut rapier_data = RapierData::default();
-    let particles =
-        model_to_point_cloud::spawn_elastic_model_demo(app_state, &pc_grid, &mut rapier_data);
+    default_scene::set_default_app_state(app_state);
+    default_scene::spawn_ground_and_walls(&mut rapier_data);
+
+    let mut particles = vec![];
+    for (pos, color) in pc_grid {
+        let particle = default_scene::create_particle(&pos, Some(color));
+        particles.push(particle);
+    }
     // Slicer
     let mut slicer_trimeshes = load_model_trimeshes("assets/chefs_knife_open_blade.glb");
     slicer_trimeshes.iter_mut().for_each(|trimesh| {
@@ -80,7 +90,7 @@ pub fn demo(
         &particles,
         &rapier_data.bodies,
         &rapier_data.colliders,
-        1f32 / model_to_point_cloud::SAMPLE_PER_UNIT,
+        1f32 / default_scene::SAMPLE_PER_UNIT,
         60_000,
     );
 
@@ -168,46 +178,5 @@ mod follow_rapier {
                 }
             }
         }
-    }
-}
-
-mod extract_mesh {
-    use super::*;
-    use bevy::render::mesh::{Indices, Mesh, VertexAttributeValues};
-    use nalgebra::Point3;
-
-    use f32 as Real;
-
-    pub fn extract_mesh_vertices_indices(
-        mesh: &Mesh,
-    ) -> Option<(Vec<Point3<Real>>, Vec<[u32; 3]>)> {
-        use rapier3d::na::point;
-
-        let vertices = mesh.attribute(Mesh::ATTRIBUTE_POSITION)?;
-        let indices = mesh.indices()?;
-
-        let vtx: Vec<_> = match vertices {
-            VertexAttributeValues::Float32(vtx) => Some(
-                vtx.chunks(3)
-                    .map(|v| point![v[0] as Real, v[1] as Real, v[2] as Real])
-                    .collect(),
-            ),
-            VertexAttributeValues::Float32x3(vtx) => Some(
-                vtx.iter()
-                    .map(|v| point![v[0] as Real, v[1] as Real, v[2] as Real])
-                    .collect(),
-            ),
-            _ => None,
-        }?;
-
-        let idx = match indices {
-            Indices::U16(idx) => idx
-                .chunks_exact(3)
-                .map(|i| [i[0] as u32, i[1] as u32, i[2] as u32])
-                .collect(),
-            Indices::U32(idx) => idx.chunks_exact(3).map(|i| [i[0], i[1], i[2]]).collect(),
-        };
-
-        Some((vtx, idx))
     }
 }
