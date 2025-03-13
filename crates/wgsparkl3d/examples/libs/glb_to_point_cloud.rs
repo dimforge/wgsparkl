@@ -1,40 +1,24 @@
-//mod model_to_point_cloud;
-use super::model_to_point_cloud;
+#![allow(unused)]
 
 use bevy::{
-    app::{App, Startup, Update},
     asset::RenderAssetUsages,
     color::{palettes::css, Color},
-    core_pipeline::core_3d::Camera3d,
-    ecs::{
-        component::Component,
-        system::{Commands, Query},
-    },
-    gizmos::gizmos::Gizmos,
     math::Vec3,
-    pbr::{
-        wireframe::{Wireframe, WireframePlugin},
-        CascadeShadowConfigBuilder,
-    },
-    picking::mesh_picking::MeshPickingPlugin,
     prelude::*,
-    render::{
-        camera::Camera,
-        mesh::{Indices, Mesh},
-        render_resource::WgpuFeatures,
-        renderer::RenderDevice,
-        settings::{RenderCreation, WgpuSettings},
-        RenderPlugin,
-    },
-    DefaultPlugins,
+    render::mesh::{Indices, Mesh},
 };
-use bevy_editor_cam::{prelude::EditorCam, DefaultEditorCamPlugins};
 use image::RgbaImage;
-use nalgebra::{vector, Matrix4, Point3, Vector3};
-use std::{f32::consts::PI, fs::File, io::Read};
-use wgpu::{Features, PrimitiveTopology};
-use wgsparkl3d::{pipeline::MpmData, solver::SimulationParams};
-use wgsparkl_testbed3d::{AppState, PhysicsContext, RapierData};
+use nalgebra::{Matrix4, Point3};
+use std::{fs::File, io::Read};
+use wgpu::PrimitiveTopology;
+
+#[path = "extract_mesh.rs"]
+mod extract_mesh;
+
+#[derive(Component)]
+pub struct PointCloud {
+    pub positions: Vec<(Vec3, Color)>,
+}
 
 fn extract_embedded_texture<'a>(
     gltf: &gltf::Document,
@@ -82,61 +66,12 @@ fn sample_texture(texture: &RgbaImage, uv: [f32; 2]) -> [u8; 4] {
     texture.get_pixel(x, y).0
 }
 
-fn main() {
-    App::new()
-        .add_plugins((
-            DefaultPlugins.set(RenderPlugin {
-                render_creation: RenderCreation::Automatic(WgpuSettings {
-                    // WARN this is a native only feature. It will not work with webgl or webgpu
-                    features: WgpuFeatures::POLYGON_MODE_LINE,
-                    ..default()
-                }),
-                ..default()
-            }),
-            // You need to add this plugin to enable wireframe rendering
-            WireframePlugin,
-            MeshPickingPlugin,
-            DefaultEditorCamPlugins,
-        ))
-        .add_systems(Startup, init_scene)
-        .add_systems(Update, display_point_cloud)
-        .run();
-}
-
-#[derive(Component)]
-pub struct PointCloud {
-    pub positions: Vec<(Vec3, Color)>,
-}
-
 fn closest_point(target: Vec3, points: &[(Vec3, Color)]) -> Option<&(Vec3, Color)> {
     points.iter().min_by(|a, b| {
         a.0.distance_squared(target)
             .partial_cmp(&b.0.distance_squared(target))
             .unwrap()
     })
-}
-
-fn init_scene(mut commands: Commands) {
-    commands.spawn((Camera3d::default(), Camera::default(), EditorCam::default()));
-    commands.spawn((
-        DirectionalLight {
-            shadows_enabled: true,
-            ..default()
-        },
-        Transform {
-            translation: Vec3::new(0.0, 2.0, 0.0),
-            rotation: Quat::from_rotation_x(-PI / 4.),
-            ..default()
-        },
-    ));
-
-    let pc_grid = load_model_with_colors(
-        "assets/shiba.glb",
-        Transform::from_scale(Vec3::splat(3.0)).with_translation(Vec3::Y * 6.0),
-        None,
-    );
-
-    commands.spawn(PointCloud { positions: pc_grid });
 }
 
 // TODO: transform should not be here, but when we spawn the model.
@@ -196,73 +131,28 @@ pub fn load_model_with_colors(
             let new_p = transform.transform_point(Vec3::new(p.x, p.y, p.z));
             *p = Point3::new(new_p.x, new_p.y, new_p.z);
         });
-        let mut pc =
-            model_to_point_cloud::get_point_cloud_from_trimesh(&trimesh.0, &trimesh.1, 10.0)
-                .into_iter()
-                .enumerate()
-                .map(|(i, (p, color))| {
-                    let closest_color = closest_point(p, &res.0).unwrap();
-                    if let Some(color_inside) = color_inside {
-                        let distance = p.distance(closest_color.0);
-                        (
-                            p,
-                            if distance <= 0.2 {
-                                closest_color.1
-                            } else {
-                                color_inside
-                            },
-                        )
-                    } else {
-                        (p, closest_color.1)
-                    }
-                })
-                .collect();
+        let mut pc = extract_mesh::get_point_cloud_from_trimesh(&trimesh.0, &trimesh.1, 10.0)
+            .into_iter()
+            .map(|p| {
+                let closest_color = closest_point(p, &res.0).unwrap();
+                if let Some(color_inside) = color_inside {
+                    let distance = p.distance(closest_color.0);
+                    (
+                        p,
+                        if distance <= 0.2 {
+                            closest_color.1
+                        } else {
+                            color_inside
+                        },
+                    )
+                } else {
+                    (p, closest_color.1)
+                }
+            })
+            .collect();
         pc_grid.append(&mut pc);
     }
     pc_grid
-}
-
-pub fn elastic_color_model_demo(
-    mut commands: Commands,
-    device: Res<RenderDevice>,
-    mut app_state: ResMut<AppState>,
-) {
-    let pc_grid = load_model_with_colors(
-        "assets/shiba.glb",
-        Transform::from_scale(Vec3::splat(3.0)).with_translation(Vec3::Y * 6.0),
-        None,
-    );
-    let params = SimulationParams {
-        gravity: vector![0.0, -9.81, 0.0] * app_state.gravity_factor,
-        dt: (1.0 / 60.0) / (app_state.num_substeps as f32),
-    };
-    let mut rapier_data = RapierData::default();
-    let particles =
-        model_to_point_cloud::spawn_elastic_model_demo(app_state, &pc_grid, &mut rapier_data);
-    let data = MpmData::new(
-        device.wgpu_device(),
-        params,
-        &particles,
-        &rapier_data.bodies,
-        &rapier_data.colliders,
-        1f32 / model_to_point_cloud::SAMPLE_PER_UNIT,
-        60_000,
-    );
-
-    let physics = PhysicsContext {
-        data,
-        rapier_data,
-        particles,
-    };
-    commands.insert_resource(physics);
-}
-
-fn display_point_cloud(mut pcs: Query<&PointCloud>, mut gizmos: Gizmos) {
-    for pc in pcs.iter() {
-        for p in pc.positions.iter() {
-            gizmos.sphere(p.0, 0.01f32, p.1);
-        }
-    }
 }
 
 fn get_node_transform(node: &gltf::Node, parent_transform: Matrix4<f32>) -> Matrix4<f32> {
