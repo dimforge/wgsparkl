@@ -57,6 +57,7 @@ pub fn recenter_and_scale(
         .for_each(|p| *p = (*p - center.coords) * sample_per_unit / diag);
 }
 
+/// TODO: consider using [`wgsparkl3d::solver::particle3d::sample_mesh`] (should be exposed though!)
 pub fn get_point_cloud_from_trimesh(
     vertices: &Vec<nalgebra::OPoint<f32, nalgebra::Const<3>>>,
     indices: &Vec<usize>,
