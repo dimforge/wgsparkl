@@ -10,7 +10,6 @@ use bevy::{
 use image::RgbaImage;
 use nalgebra::{Matrix4, Point3};
 use std::{fs::File, io::Read};
-use wgpu::PrimitiveTopology;
 
 #[path = "extract_mesh.rs"]
 mod extract_mesh;
@@ -81,7 +80,6 @@ pub fn load_model_with_colors(
     transform: Transform,
     color_inside: Option<Color>,
 ) -> Vec<(Vec3, Color)> {
-    // Replace with your actual GLB file path
     let mut res = load_model_with_point_cloud(path);
     let mut pc_grid = vec![];
 
@@ -96,11 +94,6 @@ pub fn load_model_with_colors(
         css::BLACK,
         css::BROWN,
     ];
-    // TODO: load real gltf model to add a comparison
-    // commands.spawn((
-    //     Transform::from_xyz(0.0, 0.0, 0.0),
-    //     SceneRoot(asset_server.load(GltfAssetLabel::Scene(0).from_asset("car/scene.gltf"))),
-    // ));
 
     res.0
         .iter_mut()
@@ -111,21 +104,6 @@ pub fn load_model_with_colors(
             //continue;
         }
         let color = Color::from(colors[t_id % colors.len()]);
-        let mut mesh = Mesh::new(
-            PrimitiveTopology::TriangleList,
-            RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
-        )
-        .with_inserted_attribute(
-            Mesh::ATTRIBUTE_POSITION,
-            trimesh
-                .0
-                .iter()
-                .map(|p| Vec3::new(p.x, p.y, p.z))
-                .collect::<Vec<_>>(),
-        )
-        .with_inserted_indices(Indices::U32(trimesh.1.iter().map(|i| *i as u32).collect()));
-        mesh.duplicate_vertices();
-        mesh.compute_flat_normals();
 
         trimesh.0.iter_mut().for_each(|p| {
             let new_p = transform.transform_point(Vec3::new(p.x, p.y, p.z));

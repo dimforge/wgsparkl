@@ -1,6 +1,8 @@
 use bevy::prelude::*;
 use wgsparkl_testbed3d::{init_testbed, SceneInits};
 
+pub mod utils;
+
 mod banana3;
 mod elastic_cut3;
 mod glb_to_point_cloud_color;

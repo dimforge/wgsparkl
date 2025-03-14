@@ -1,4 +1,4 @@
-use wgsparkl_testbed3d::{wgsparkl, RapierData};
+use wgsparkl_testbed3d::{CallBeforeSimulation, RapierData, wgsparkl};
 
 use bevy::prelude::*;
 use bevy::render::renderer::RenderDevice;
@@ -79,11 +79,11 @@ pub fn sand_demo(
     );
 
     let rb = RigidBodyBuilder::kinematic_velocity_based()
-        .translation(vector![0.0, 2.0, 0.0])
+        .translation(vector![0.0, 1.5, 0.0])
         .rotation(vector![0.0, 0.0, -0.5])
         .angvel(vector![0.0, -1.0, 0.0]);
-    let co = ColliderBuilder::cuboid(0.5, 2.0, 30.0);
-    rapier_data.insert_body_and_collider(rb, co);
+    let co = ColliderBuilder::cuboid(0.5, 1.5, 30.0);
+    let (rb, _) = rapier_data.insert_body_and_collider(rb, co);
 
     let data = MpmData::new(
         device,
@@ -99,4 +99,37 @@ pub fn sand_demo(
         rapier_data,
         particles,
     });
+    let system_id = commands.register_system(stop_angular_velocity);
+    commands.spawn(CallBeforeSimulation(system_id));
+
+    // TODO: export particles positions after a bigger delay
+    commands.spawn(StopAngVelAfter {
+        steps_left: 100,
+        rigidbody_handle: rb,
+    });
+}
+
+#[derive(Debug, Component)]
+pub struct StopAngVelAfter {
+    /// Number of steps left before stopping the angular velocity.
+    pub steps_left: u32,
+    pub rigidbody_handle: rapier3d::dynamics::RigidBodyHandle,
+}
+
+pub fn stop_angular_velocity(
+    mut stop_angvel: Query<&mut StopAngVelAfter>,
+    mut physics: ResMut<PhysicsContext>,
+) {
+    for mut stop_angvel in stop_angvel.iter_mut() {
+        if stop_angvel.steps_left == 0 {
+            physics
+                .rapier_data
+                .bodies
+                .get_mut(stop_angvel.rigidbody_handle)
+                .unwrap()
+                .set_angvel(vector![0.0, 0.0, 0.0], false);
+        } else {
+            stop_angvel.steps_left -= 1;
+        }
+    }
 }

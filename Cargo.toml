@@ -4,6 +4,7 @@ members = [
     "crates/wgsparkl-testbed3d",
     "crates/wgsparkl2d",
     "crates/wgsparkl3d",
+    "examples3d",
 ]
 resolver = "2"
 

@@ -1,7 +1,5 @@
-#[path = "libs/default_scene.rs"]
-pub mod default_scene;
-#[path = "libs/extract_mesh.rs"]
-pub mod extract_mesh;
+use crate::utils::default_scene;
+use crate::utils::extract_mesh;
 
 use std::{fs::File, io::BufReader};
 

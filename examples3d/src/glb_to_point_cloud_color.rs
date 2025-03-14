@@ -1,7 +1,5 @@
-#[path = "libs/default_scene.rs"]
-pub mod default_scene;
-#[path = "libs/glb_to_point_cloud.rs"]
-pub mod glb_to_point_cloud;
+use crate::utils::default_scene;
+use crate::utils::glb_to_point_cloud;
 
 use bevy::{
     app::{App, Startup, Update},
