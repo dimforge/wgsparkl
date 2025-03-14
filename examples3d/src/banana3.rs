@@ -1,17 +1,11 @@
-#![allow(unused)]
-
-#[path = "libs/default_scene.rs"]
-pub mod default_scene;
-#[path = "libs/extract_mesh.rs"]
-pub mod extract_mesh;
-#[path = "libs/glb_to_point_cloud.rs"]
-pub mod glb_to_point_cloud;
+use crate::utils::default_scene;
+use crate::utils::glb_to_point_cloud;
 
 use glb_to_point_cloud::load_model_trimeshes;
 use glb_to_point_cloud::load_model_with_colors;
 
 use bevy::color::palettes::css;
-use bevy::{prelude::*, render::renderer::RenderDevice, scene::SceneInstanceReady};
+use bevy::{prelude::*, render::renderer::RenderDevice};
 use nalgebra::vector;
 use rapier3d::prelude::RigidBodyHandle;
 use rapier3d::prelude::{ColliderBuilder, RigidBodyBuilder, SharedShape, TriMeshFlags};
