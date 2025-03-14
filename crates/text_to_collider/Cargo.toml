@@ -1,0 +1,17 @@
+[package]
+name = "text_to_collider"
+version = "0.1.0"
+license = "Apache-2.0 OR Custom"
+edition = "2021"
+
+[lints]
+workspace = true
+
+[dependencies]
+env_logger = "*"
+cosmic-text = "*"
+image = "*"
+parry3d = "*"
+
+[dev-dependencies]
+bevy = "0.15"
