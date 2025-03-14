@@ -49,3 +49,6 @@ rapier3d = { git = "https://github.com/vrixyz/rapier.git", branch = "uber_physic
 
 [profile.release]
 opt-level = 'z'
+
+[profile.dev]
+opt-level = 1
