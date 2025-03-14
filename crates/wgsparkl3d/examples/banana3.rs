@@ -108,8 +108,12 @@ pub fn demo(
 #[derive(Debug, Component)]
 pub struct Knife(pub RigidBodyHandle);
 
-fn move_knife(app_state: Res<AppState>, knife: Query<&Knife>, mut physics: ResMut<PhysicsContext>) {
-    for knife in knife.iter() {
+fn move_knife(
+    app_state: Res<AppState>,
+    mut knife: Query<(&mut Transform, &Knife)>,
+    mut physics: ResMut<PhysicsContext>,
+) {
+    for (mut pos, knife) in knife.iter_mut() {
         let t = app_state.physics_time_seconds as f32;
 
         let body = physics.rapier_data.bodies.get_mut(knife.0).unwrap();
@@ -143,40 +147,6 @@ fn move_knife(app_state: Res<AppState>, knife: Query<&Knife>, mut physics: ResMu
         };
 
         body.set_translation(new_pos, true);
-    }
-}
-
-mod follow_rapier {
-    use rapier3d::prelude::{RigidBodyHandle, RigidBodySet};
-
-    use super::*;
-    // TODO: use this for the knife.
-    pub fn follow_body_position(
-        entity_follower: Entity,
-        body_to_follow_handle: RigidBodyHandle,
-        bodies: &RigidBodySet,
-        components: &mut Query<&mut Transform>,
-    ) {
-        if let Some(body) = bodies.get(body_to_follow_handle) {
-            if let Ok(mut pos) = components.get_mut(entity_follower) {
-                let co_pos = body.position();
-                pos.translation.x = (co_pos.translation.vector.x) as f32;
-                pos.translation.y = (co_pos.translation.vector.y) as f32;
-                #[cfg(feature = "dim3")]
-                {
-                    pos.translation.z = (co_pos.translation.vector.z) as f32;
-                    pos.rotation = Quat::from_xyzw(
-                        co_pos.rotation.i as f32,
-                        co_pos.rotation.j as f32,
-                        co_pos.rotation.k as f32,
-                        co_pos.rotation.w as f32,
-                    );
-                }
-                #[cfg(feature = "dim2")]
-                {
-                    pos.rotation = Quat::from_rotation_z(co_pos.rotation.angle() as f32);
-                }
-            }
-        }
+        pos.translation = Vec3::new(new_pos[0], new_pos[1], new_pos[2]);
     }
 }
