@@ -5,6 +5,7 @@ members = [
     "crates/wgsparkl2d",
     "crates/wgsparkl3d",
     "examples3d",
+    "examples2d",
 ]
 resolver = "2"
 

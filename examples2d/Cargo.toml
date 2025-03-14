@@ -1,5 +1,5 @@
 [package]
-name = "wgsparkl-examples-3d"
+name = "wgsparkl-examples-2d"
 version = "0.1.0"
 license = "Apache-2.0 OR Custom"
 edition = "2021"
@@ -16,8 +16,8 @@ bevy = { version = "0.15.0", features = [
     "webgpu",
     "jpeg",
 ] }
-wgsparkl_testbed3d = { path = "../crates/wgsparkl-testbed3d" }
-wgsparkl3d = { path = "../crates/wgsparkl3d" }
+wgsparkl_testbed2d = { path = "../crates/wgsparkl-testbed2d" }
+wgsparkl2d = { path = "../crates/wgsparkl2d" }
 obj-rs = { version = "0.7", default-features = false }
 bevy_editor_cam = "*"
 image = "0.25"
