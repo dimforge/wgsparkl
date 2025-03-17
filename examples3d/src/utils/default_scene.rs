@@ -43,16 +43,15 @@ pub fn spawn_ground_and_walls(rapier_data: &mut RapierData) {
     );
 }
 
-pub fn create_particle(pos: &Vec3, color: Option<Color>) -> Particle {
-    let radius = 1f32 / SAMPLE_PER_UNIT / 2f32;
-    let density = 3700.0;
+pub fn create_particle(pos: &Vec3, color: Option<Color>, radius: f32) -> Particle {
+    let density = 1200.0;
     let particle = Particle {
         position: pos.to_array().into(),
         dynamics: ParticleDynamics::with_density(radius, density),
-        model: ElasticCoefficients::from_young_modulus(10_000_000.0, 0.2),
+        model: ElasticCoefficients::from_young_modulus(10_000_000.0, 0.28),
         plasticity: None,
         phase: Some(ParticlePhase {
-            phase: 1.0,
+            phase: 0.7f32,
             max_stretch: f32::MAX,
         }),
         color: color.map(|c| c.to_linear().to_u8_array()),

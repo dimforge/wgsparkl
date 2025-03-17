@@ -17,7 +17,11 @@ bevy = { version = "0.15.0", features = [
     "jpeg",
 ] }
 wgsparkl_testbed3d = { path = "../crates/wgsparkl-testbed3d" }
-wgsparkl3d = { path = "../crates/wgsparkl3d" }
+wgsparkl3d = { path = "../crates/wgsparkl3d", features = [
+    "load_gltf",
+    "load_bevy",
+    "load_obj",
+] }
 obj-rs = { version = "0.7", default-features = false }
 bevy_editor_cam = "*"
 image = "0.25"

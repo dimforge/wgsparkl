@@ -1,13 +1,9 @@
+use wgsparkl2d::rapier::prelude::{ColliderBuilder, RigidBodyBuilder};
 use wgsparkl_testbed2d::{wgsparkl, RapierData};
 
 use bevy::prelude::*;
 use bevy::render::renderer::RenderDevice;
-use nalgebra::{point, vector, Similarity2, Vector2};
-use rapier2d::prelude::{ColliderBuilder, RigidBodyBuilder};
-use wgebra::GpuSim2;
-use wgparry2d::parry::shape::Cuboid;
-use wgrapier2d::dynamics::{BodyDesc, GpuVelocity};
-use wgsparkl::models::DruckerPrager;
+use nalgebra::{point, vector, Vector2};
 use wgsparkl::solver::ParticlePhase;
 use wgsparkl::{
     models::ElasticCoefficients,
@@ -15,16 +11,13 @@ use wgsparkl::{
     solver::{Particle, SimulationParams},
 };
 use wgsparkl2d::solver::ParticleDynamics;
-use wgsparkl_testbed2d::{init_testbed, AppState, PhysicsContext, SceneInits};
-
-fn main() {
-    panic!("Run the `testbed3` example instead.");
-}
+use wgsparkl_testbed2d::{AppState, PhysicsContext};
 
 pub fn elastic_cut_demo(
     mut commands: Commands,
     device: Res<RenderDevice>,
     mut app_state: ResMut<AppState>,
+    asset_server: Res<AssetServer>,
 ) {
     let mut rapier_data = RapierData::default();
     let device = device.wgpu_device();
@@ -48,6 +41,7 @@ pub fn elastic_cut_demo(
                     phase: 1.0,
                     max_stretch: f32::MAX,
                 }),
+                color: None,
             });
         }
     }
@@ -70,7 +64,7 @@ pub fn elastic_cut_demo(
      */
     let rb = RigidBodyBuilder::fixed().translation(vector![35.0, 20.0]);
     let rb_handle = rapier_data.bodies.insert(rb);
-    let co = ColliderBuilder::cuboid(70.0, 1.0);
+    let co = wgsparkl2d::rapier::prelude::ColliderBuilder::cuboid(70.0, 1.0);
     rapier_data
         .colliders
         .insert_with_parent(co, rb_handle, &mut rapier_data.bodies);
