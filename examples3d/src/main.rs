@@ -7,7 +7,6 @@ mod banana3;
 mod elastic_cut3;
 mod glb_to_point_cloud_color;
 mod heightfield3;
-mod obj_to_point_cloud;
 mod sand3;
 
 pub fn main() {
@@ -32,10 +31,6 @@ fn register_scenes(world: &mut World) {
         (
             "elastic_cut".to_string(),
             world.register_system(elastic_cut3::elastic_cut_demo),
-        ),
-        (
-            "elastic_model".to_string(),
-            world.register_system(obj_to_point_cloud::elastic_model_demo),
         ),
         (
             "elastic_model_colors".to_string(),

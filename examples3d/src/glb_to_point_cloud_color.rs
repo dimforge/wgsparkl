@@ -1,5 +1,4 @@
-use crate::utils::default_scene;
-use crate::utils::glb_to_point_cloud;
+use crate::utils::default_scene::{self, SAMPLE_PER_UNIT};
 
 use bevy::{
     app::{App, Startup, Update},
@@ -20,9 +19,9 @@ use bevy::{
     DefaultPlugins,
 };
 use bevy_editor_cam::{prelude::EditorCam, DefaultEditorCamPlugins};
-use glb_to_point_cloud::{load_model_with_colors, PointCloud};
-use nalgebra::vector;
-use std::f32::consts::PI;
+use nalgebra::{vector, Isometry3, Transform3, UnitQuaternion, Vector3};
+use std::{f32::consts::PI, fs::File, io::Read};
+use wgsparkl3d::load_mesh3d::load_gltf::load_model_with_colors;
 use wgsparkl3d::{pipeline::MpmData, solver::SimulationParams};
 use wgsparkl_testbed3d::{AppState, PhysicsContext, RapierData};
 
@@ -62,13 +61,36 @@ fn init_scene(mut commands: Commands) {
         },
     ));
 
+    let mut file = File::open("assets/shiba.glb").expect("Failed to open GLB file");
+    let mut buffer = Vec::new();
+    file.read_to_end(&mut buffer).expect("Failed to read file");
     let pc_grid = load_model_with_colors(
-        "assets/shiba.glb",
-        Transform::from_scale(Vec3::splat(3.0)).with_translation(Vec3::Y * 6.0),
+        &buffer,
+        Transform3::from_matrix_unchecked(
+            Isometry3::from_parts(
+                Vector3::new(0.0, 6.0, 0.0).into(),
+                UnitQuaternion::identity(),
+            )
+            .to_matrix()
+            .scale(3.0),
+        ),
         None,
     );
 
-    commands.spawn(PointCloud { positions: pc_grid });
+    commands.spawn(PointCloud {
+        positions: pc_grid
+            .iter()
+            .map(|p| {
+                let pos = Vec3::new(p.0.x, p.0.y, p.0.z);
+                (pos, Color::from(Srgba::from_u8_array(p.1)))
+            })
+            .collect::<Vec<_>>(),
+    });
+}
+
+#[derive(Component)]
+pub struct PointCloud {
+    pub positions: Vec<(Vec3, Color)>,
 }
 
 pub fn elastic_color_model_demo(
@@ -76,9 +98,19 @@ pub fn elastic_color_model_demo(
     device: Res<RenderDevice>,
     app_state: ResMut<AppState>,
 ) {
+    let mut file = File::open("assets/shiba.glb").expect("Failed to open GLB file");
+    let mut buffer = Vec::new();
+    file.read_to_end(&mut buffer).expect("Failed to read file");
     let pc_grid = load_model_with_colors(
-        "assets/shiba.glb",
-        Transform::from_scale(Vec3::splat(3.0)).with_translation(Vec3::Y * 6.0),
+        &buffer,
+        Transform3::from_matrix_unchecked(
+            Isometry3::from_parts(
+                Vector3::new(0.0, 6.0, 0.0).into(),
+                UnitQuaternion::identity(),
+            )
+            .to_matrix()
+                * nalgebra::Matrix4::new_scaling(3.0),
+        ),
         None,
     );
     let params = SimulationParams {
@@ -91,7 +123,11 @@ pub fn elastic_color_model_demo(
 
     let mut particles = vec![];
     for (pos, color) in pc_grid {
-        let particle = default_scene::create_particle(&pos, Some(color));
+        let particle = default_scene::create_particle(
+            &Vec3::new(pos.x, pos.y, pos.z),
+            Some(Color::from(Srgba::from_u8_array(color))),
+            1f32 / SAMPLE_PER_UNIT / 2f32,
+        );
         particles.push(particle);
     }
     default_scene::spawn_ground_and_walls(&mut rapier_data);
