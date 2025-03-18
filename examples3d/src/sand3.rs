@@ -1,6 +1,5 @@
-use wgsparkl_testbed3d::{wgsparkl, CallBeforeSimulation, Callbacks, RapierData};
+use wgsparkl_testbed3d::{wgsparkl, Callbacks, RapierData};
 
-use bevy::prelude::*;
 use bevy::render::renderer::RenderDevice;
 use nalgebra::vector;
 use rapier3d::prelude::{ColliderBuilder, RigidBodyBuilder};

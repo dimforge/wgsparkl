@@ -63,6 +63,7 @@ pub fn load_model_with_colors<S>(
     slice: S,
     transform: Transform3<Real>,
     color_inside: Option<[u8; 4]>,
+    sample_per_unit: f32,
 ) -> Vec<(Point3<Real>, [u8; 4])>
 where
     S: AsRef<[u8]>,
@@ -82,7 +83,7 @@ where
             let new_p = transform.transform_point(&Point3::new(p.x, p.y, p.z));
             *p = Point3::new(new_p.x, new_p.y, new_p.z);
         });
-        let mut pc = get_point_cloud_from_trimesh(&trimesh.0, &trimesh.1, 10.0)
+        let mut pc = get_point_cloud_from_trimesh(&trimesh.0, &trimesh.1, sample_per_unit)
             .into_iter()
             .map(|p| {
                 let closest_color = closest_point(p, &res.0).unwrap();

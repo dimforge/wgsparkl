@@ -1,8 +1,6 @@
 use crate::instancing::InstanceMaterialData;
 use crate::startup::RigidParticlesTag;
-use crate::{
-    AppState, CallBeforeSimulation, Callbacks, PhysicsContext, RenderContext, RunState, Timestamps,
-};
+use crate::{AppState, Callbacks, PhysicsContext, RenderContext, RunState, Timestamps};
 use async_channel::{Receiver, Sender};
 use bevy::prelude::*;
 use bevy::render::renderer::{RenderDevice, RenderQueue};

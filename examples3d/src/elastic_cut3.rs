@@ -1,6 +1,5 @@
 use wgsparkl_testbed3d::{wgsparkl, Callbacks, RapierData};
 
-use bevy::prelude::*;
 use bevy::render::renderer::RenderDevice;
 use nalgebra::{vector, DMatrix, Isometry3};
 use rapier3d::geometry::HeightField;

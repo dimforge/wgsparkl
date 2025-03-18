@@ -35,6 +35,7 @@ pub fn demo(
                 * nalgebra::Matrix4::new_scaling(0.3),
         ),
         Some(css::BLANCHED_ALMOND.to_u8_array()),
+        SAMPLE_PER_UNIT,
     )
     .iter()
     .map(|p| {
