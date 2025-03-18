@@ -1,6 +1,5 @@
-use bevy::ecs::system::{Commands, Res, ResMut};
 use wgsparkl2d::rapier::prelude::{ColliderBuilder, RigidBodyBuilder};
-use wgsparkl_testbed2d::{wgsparkl, RapierData};
+use wgsparkl_testbed2d::{wgsparkl, Callbacks, RapierData};
 
 use bevy::render::renderer::RenderDevice;
 use nalgebra::{vector, Vector2};
@@ -14,10 +13,10 @@ use wgsparkl2d::solver::ParticleDynamics;
 use wgsparkl_testbed2d::{AppState, PhysicsContext};
 
 pub fn elastic_demo(
-    mut commands: Commands,
-    device: Res<RenderDevice>,
-    mut app_state: ResMut<AppState>,
-) {
+    device: RenderDevice,
+    app_state: &mut AppState,
+    _callbacks: &mut Callbacks,
+) -> PhysicsContext {
     let device = device.wgpu_device();
     let mut rapier_data = RapierData::default();
 
@@ -91,9 +90,9 @@ pub fn elastic_demo(
         cell_width,
         60_000,
     );
-    commands.insert_resource(PhysicsContext {
+    PhysicsContext {
         data,
         rapier_data,
         particles,
-    });
+    }
 }

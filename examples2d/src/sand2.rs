@@ -1,7 +1,6 @@
 use wgsparkl2d::rapier::prelude::{ColliderBuilder, RigidBodyBuilder};
-use wgsparkl_testbed2d::{wgsparkl, RapierData};
+use wgsparkl_testbed2d::{wgsparkl, Callbacks, RapierData};
 
-use bevy::prelude::*;
 use bevy::render::renderer::RenderDevice;
 use nalgebra::{vector, Vector2};
 use wgsparkl::models::DruckerPrager;
@@ -14,10 +13,10 @@ use wgsparkl2d::solver::ParticleDynamics;
 use wgsparkl_testbed2d::{AppState, PhysicsContext};
 
 pub fn sand_demo(
-    mut commands: Commands,
-    device: Res<RenderDevice>,
-    mut app_state: ResMut<AppState>,
-) {
+    device: RenderDevice,
+    app_state: &mut AppState,
+    _callbacks: &mut Callbacks,
+) -> PhysicsContext {
     let mut rapier_data = RapierData::default();
     let device = device.wgpu_device();
 
@@ -169,9 +168,9 @@ pub fn sand_demo(
         cell_width,
         60_000,
     );
-    commands.insert_resource(PhysicsContext {
+    PhysicsContext {
         data,
         rapier_data,
         particles,
-    });
+    }
 }
