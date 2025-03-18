@@ -1,14 +1,14 @@
 use std::io::BufRead;
 
-use nalgebra::point;
+use nalgebra::{point, Point3};
 use obj::{raw::object::Polygon, ObjResult};
 
-use super::{get_point_cloud_from_trimesh, recenter_and_scale};
+use super::recenter_and_scale;
 
 pub fn get_point_cloud<T: BufRead>(
     input: T,
     sample_per_unit: f32,
-) -> ObjResult<(Vec<nalgebra::OPoint<f32, nalgebra::Const<3>>>, Vec<usize>)> {
+) -> ObjResult<(Vec<Point3<f32>>, Vec<usize>)> {
     let model = obj::raw::parse_obj(input)?;
     let mut vertices: Vec<_> = model
         .positions

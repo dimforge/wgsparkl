@@ -1,9 +1,6 @@
 use crate::utils::default_scene::{self, SAMPLE_PER_UNIT};
 
-use bevy::{
-    ecs::system::Query, gizmos::gizmos::Gizmos, math::Vec3, prelude::*,
-    render::renderer::RenderDevice,
-};
+use bevy::{math::Vec3, prelude::*, render::renderer::RenderDevice};
 use nalgebra::{vector, Isometry3, Transform3, UnitQuaternion, Vector3};
 use std::{fs::File, io::Read};
 use wgsparkl3d::load_mesh3d::load_gltf::load_model_with_colors;

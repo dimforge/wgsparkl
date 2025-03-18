@@ -195,8 +195,8 @@ pub fn run_scene_init(
 ) {
     commands.insert_resource(scenes.scenes[scene_id.0].1(
         device.clone(),
-        &mut *app_state,
-        &mut *callbacks,
+        &mut app_state,
+        &mut callbacks,
     ));
 }
 
