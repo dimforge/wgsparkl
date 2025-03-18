@@ -1,6 +1,8 @@
 use crate::instancing::InstanceMaterialData;
 use crate::startup::RigidParticlesTag;
-use crate::{AppState, CallBeforeSimulation, PhysicsContext, RunState, Timestamps};
+use crate::{
+    AppState, CallBeforeSimulation, Callbacks, PhysicsContext, RenderContext, RunState, Timestamps,
+};
 use async_channel::{Receiver, Sender};
 use bevy::prelude::*;
 use bevy::render::renderer::{RenderDevice, RenderQueue, WgpuWrapper};
@@ -21,9 +23,20 @@ pub struct TimestampChannel {
     pub rcv: Receiver<Timestamps>,
 }
 
-pub fn call_before_simulation(mut commands: Commands, to_call: Query<&CallBeforeSimulation>) {
-    for to_call in to_call.iter() {
-        commands.run_system(to_call.0);
+pub fn callbacks(
+    mut render: ResMut<RenderContext>,
+    mut physics: ResMut<PhysicsContext>,
+    app_state: ResMut<AppState>,
+    timings: Res<Timestamps>,
+    mut callbacks: ResMut<Callbacks>,
+) {
+    for to_call in callbacks.0.iter_mut() {
+        to_call(
+            Some(&mut render),
+            &mut physics,
+            timings.as_ref(),
+            &app_state,
+        );
     }
 }
 

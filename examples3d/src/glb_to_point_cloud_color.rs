@@ -23,7 +23,7 @@ use nalgebra::{vector, Isometry3, Transform3, UnitQuaternion, Vector3};
 use std::{f32::consts::PI, fs::File, io::Read};
 use wgsparkl3d::load_mesh3d::load_gltf::load_model_with_colors;
 use wgsparkl3d::{pipeline::MpmData, solver::SimulationParams};
-use wgsparkl_testbed3d::{AppState, PhysicsContext, RapierData};
+use wgsparkl_testbed3d::{AppState, Callbacks, PhysicsContext, RapierData};
 
 #[allow(unused)]
 fn main() {
@@ -94,10 +94,10 @@ pub struct PointCloud {
 }
 
 pub fn elastic_color_model_demo(
-    mut commands: Commands,
-    device: Res<RenderDevice>,
-    app_state: ResMut<AppState>,
-) {
+    device: RenderDevice,
+    app_state: &mut AppState,
+    _callbacks: &mut Callbacks,
+) -> PhysicsContext {
     let mut file = File::open("assets/shiba.glb").expect("Failed to open GLB file");
     let mut buffer = Vec::new();
     file.read_to_end(&mut buffer).expect("Failed to read file");
@@ -118,7 +118,10 @@ pub fn elastic_color_model_demo(
         dt: (1.0 / 60.0) / (app_state.num_substeps as f32),
     };
     let mut rapier_data = RapierData::default();
-    default_scene::set_default_app_state(app_state);
+    if !app_state.restarting {
+        app_state.num_substeps = 20;
+        app_state.gravity_factor = 1.0;
+    };
     default_scene::spawn_ground_and_walls(&mut rapier_data);
 
     let mut particles = vec![];
@@ -141,12 +144,11 @@ pub fn elastic_color_model_demo(
         60_000,
     );
 
-    let physics = PhysicsContext {
+    PhysicsContext {
         data,
         rapier_data,
         particles,
-    };
-    commands.insert_resource(physics);
+    }
 }
 
 fn display_point_cloud(pcs: Query<&PointCloud>, mut gizmos: Gizmos) {

@@ -22,10 +22,10 @@ fn main() {
 }
 
 pub fn sand_demo(
-    mut commands: Commands,
-    device: Res<RenderDevice>,
-    mut app_state: ResMut<AppState>,
-) {
+    device: RenderDevice,
+    app_state: &mut AppState,
+    _callbacks: &mut Callbacks,
+) -> PhysicsContext {
     let mut rapier_data = RapierData::default();
     let device = device.wgpu_device();
 
@@ -45,6 +45,7 @@ pub fn sand_demo(
                 model: ElasticCoefficients::from_young_modulus(10_000_000.0, 0.2),
                 plasticity: Some(DruckerPrager::new(10_000_000.0, 0.2)),
                 phase: None,
+                color: None,
             });
         }
     }
@@ -176,9 +177,9 @@ pub fn sand_demo(
         cell_width,
         60_000,
     );
-    commands.insert_resource(PhysicsContext {
+    PhysicsContext {
         data,
         rapier_data,
         particles,
-    });
+    }
 }
