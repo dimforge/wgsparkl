@@ -10,16 +10,12 @@ pub fn load_mesh_vertices_indices(mesh: &Mesh) -> Option<(Vec<Point3<Real>>, Vec
     let indices = mesh.indices()?;
 
     let vtx: Vec<_> = match vertices {
-        VertexAttributeValues::Float32(vtx) => Some(
-            vtx.chunks(3)
-                .map(|v| point![v[0] as Real, v[1] as Real, v[2] as Real])
-                .collect(),
-        ),
-        VertexAttributeValues::Float32x3(vtx) => Some(
-            vtx.iter()
-                .map(|v| point![v[0] as Real, v[1] as Real, v[2] as Real])
-                .collect(),
-        ),
+        VertexAttributeValues::Float32(vtx) => {
+            Some(vtx.chunks(3).map(|v| point![v[0], v[1], v[2]]).collect())
+        }
+        VertexAttributeValues::Float32x3(vtx) => {
+            Some(vtx.iter().map(|v| point![v[0], v[1], v[2]]).collect())
+        }
         _ => None,
     }?;
 

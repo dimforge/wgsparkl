@@ -27,15 +27,15 @@ pub fn recenter_and_scale(
 }
 
 pub fn get_point_cloud_from_trimesh(
-    vertices: &Vec<nalgebra::OPoint<f32, nalgebra::Const<3>>>,
-    indices: &Vec<usize>,
+    vertices: &[nalgebra::OPoint<f32, nalgebra::Const<3>>],
+    indices: &[usize],
     sample_per_unit: f32,
 ) -> Vec<Point3<Real>> {
     let indices: Vec<_> = indices
         .chunks(3)
         .map(|idx| [idx[0] as u32, idx[1] as u32, idx[2] as u32])
         .collect();
-    let trimesh = TriMesh::with_flags(vertices.clone(), indices, TriMeshFlags::ORIENTED)
+    let trimesh = TriMesh::with_flags(vertices.to_vec(), indices, TriMeshFlags::ORIENTED)
         .expect("Invalid mesh");
     let aabb = bounding_volume::details::point_cloud_aabb(
         &rapier3d::na::Isometry::default(),

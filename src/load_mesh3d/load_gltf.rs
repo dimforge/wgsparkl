@@ -4,13 +4,13 @@ use nalgebra::{distance_squared, Matrix4, Point3, Transform3};
 
 use super::get_point_cloud_from_trimesh;
 
-fn extract_embedded_texture<'a>(
+fn extract_embedded_texture(
     gltf: &gltf::Document,
-    buffers: &'a [gltf::buffer::Data],
+    buffers: &[gltf::buffer::Data],
 ) -> Option<RgbaImage> {
     for image in gltf.images() {
         dbg!(image.name());
-        if let gltf::image::Source::View { view, mime_type } = image.source() {
+        if let gltf::image::Source::View { view, .. } = image.source() {
             let buffer = &buffers[view.buffer().index()];
             let start = view.offset();
             let end = start + view.length();
@@ -75,7 +75,7 @@ where
         .iter_mut()
         .for_each(|p| p.0 = transform.transform_point(&p.0));
 
-    for (t_id, mut trimesh) in res.1.iter_mut().enumerate() {
+    for (t_id, trimesh) in res.1.iter_mut().enumerate() {
         if t_id != 0 {
             //continue;
         }
@@ -147,7 +147,7 @@ where
             let world_transform = get_node_transform(&node, parent_transform);
 
             if let Some(mesh) = node.mesh() {
-                for primitive in mesh.primitives() {
+                if let Some(primitive) = mesh.primitives().next() {
                     return Some((self.process_primitive)(&primitive, &world_transform));
                 }
             }
