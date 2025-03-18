@@ -106,9 +106,6 @@ pub struct AppState {
     pub physics_time_seconds: f64,
 }
 
-#[derive(Component)]
-pub struct CallBeforeSimulation(pub SystemId);
-
 pub use wgsparkl::rapier::prelude::PhysicsContext as RapierData;
 
 #[derive(Resource)]
