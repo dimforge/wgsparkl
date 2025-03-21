@@ -4,40 +4,34 @@ struct Position {
     pt: vec3<f32>,
 }
 
-struct Velocity {
-    v: vec3<f32>,
+struct Dynamics {
+    velocity: vec3<f32>,
+    def_grad: mat3x3<f32>,
+    affine: mat3x3<f32>,
+    cdf: Cdf,
+    init_volume: f32,
+    init_radius: f32,
+    mass: f32,
 }
 
-struct Volume {
-    // First three rows contains the deformation gradient.
-    // Fourth row contains (mass, init_volume, init_radius).
-    packed: mat3x4<f32>
+struct Cdf {
+    // Should we pack this?
+    normal: vec3<f32>,
+    rigid_vel: vec3<f32>,
+    signed_distance: f32,
+    affinity: u32,
+//    // Index to the closest collider.
+//    closest_id: u32,
 }
 
-fn deformation_gradient(volume: Volume) -> mat3x3<f32> {
-    return mat3x3(volume.packed.x.xyz, volume.packed.y.xyz, volume.packed.z.xyz);
+struct RigidParticleIndices {
+    triangle: vec3<u32>,
+    collider: u32,
 }
 
-fn set_deformation_gradient(vol: Volume, new_def_grad: mat3x3<f32>) -> Volume {
-    return Volume(
-        mat3x4(
-            vec4(new_def_grad.x, vol.packed.x.w),
-            vec4(new_def_grad.y, vol.packed.y.w),
-            vec4(new_def_grad.z, vol.packed.z.w),
-        )
-    );
-}
 
-fn mass(volume: Volume) -> f32 {
-    return volume.packed.x.w;
-}
-
-fn init_volume(volume: Volume) -> f32 {
-    return volume.packed.y.w;
-}
-
-fn init_radius(volume: Volume) -> f32 {
-    return volume.packed.z.w;
+fn default_cdf() -> Cdf {
+    return Cdf(vec3(0.0), vec3(0.0), 0.0, 0);
 }
 
 fn closest_grid_pos(part_pos: Position, cell_width: f32) -> vec3<f32> {

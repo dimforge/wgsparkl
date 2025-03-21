@@ -10,4 +10,4 @@ use wgebra::{WgSvd2, WgSvd3};
 )]
 pub struct WgNeoHookeanElasticity;
 
-wgcore::test_shader_compilation!(WgNeoHookeanElasticity);
+wgcore::test_shader_compilation!(WgNeoHookeanElasticity, wgcore, crate::dim_shader_defs());

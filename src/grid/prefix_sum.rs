@@ -1,4 +1,4 @@
-use naga_oil::compose::{ NagaModuleDescriptor};
+use naga_oil::compose::NagaModuleDescriptor;
 use nalgebra::DVector;
 use wgcore::kernel::{KernelInvocationBuilder, KernelInvocationQueue};
 use wgcore::tensor::GpuVector;
@@ -175,6 +175,7 @@ mod test {
     use wgcore::gpu::GpuInstance;
     use wgcore::kernel::KernelInvocationQueue;
     use wgcore::tensor::{GpuVector, TensorBuilder};
+    use wgcore::Shader;
     use wgpu::BufferUsages;
 
     #[futures_test::test]
@@ -183,8 +184,8 @@ mod test {
         const LEN: u32 = 15071;
 
         let gpu = GpuInstance::new().await.unwrap();
-        let prefix_sum = WgPrefixSum::new(gpu.device());
-        let mut queue = KernelInvocationQueue::new(gpu.device_arc());
+        let prefix_sum = WgPrefixSum::from_device(gpu.device()).unwrap();
+        let mut queue = KernelInvocationQueue::new(gpu.device());
 
         let inputs = vec![
             DVector::<u32>::from_fn(LEN as usize, |i, _| 1),
@@ -208,7 +209,7 @@ mod test {
             let mut workspace = PrefixSumWorkspace::with_capacity(gpu.device(), v_cpu.len() as u32);
             prefix_sum.queue(&mut queue, &mut workspace, &v_gpu);
 
-            queue.encode(&mut encoder);
+            queue.encode(&mut encoder, None);
             staging.copy_from(&mut encoder, &v_gpu);
 
             let t0 = std::time::Instant::now();

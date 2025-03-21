@@ -7,7 +7,6 @@ var<storage, read_write> active_blocks: array<ActiveBlockHeader>;
 @group(0) @binding(8)
 var<storage, read_write> num_collisions: array<atomic<u32>>;
 
-
 struct NodeLinkedListAtomic {
     head: atomic<u32>,
     len: atomic<u32>,
@@ -192,6 +191,35 @@ fn mark_block_as_active(block: BlockVirtualId) {
     }
 }
 
+fn find_block_header_id(key: BlockVirtualId) -> BlockHeaderId {
+    let packed_key = pack_key(key);
+    var slot = hash(packed_key) & (grid.hmap_capacity - 1);
+
+    loop {
+        let entry = &hmap_entries[slot];
+        let state = (*entry).state;
+        if state == packed_key {
+            return (*entry).value;
+        } else if state == NONE {
+            return BlockHeaderId(NONE);
+        }
+
+         slot = (slot + 1) & (grid.hmap_capacity - 1);
+    }
+
+    return BlockHeaderId(NONE);
+}
+
+fn block_has_particles(block: BlockVirtualId) -> bool {
+    let block_header_id = find_block_header_id(block);
+
+    if block_header_id.id != NONE {
+        return active_blocks[block_header_id.id].num_particles != 0;
+    } else {
+        return false;
+    }
+}
+
 struct SimulationParameters {
     dt: f32,
     gravity: vec2<f32>,
@@ -204,6 +232,8 @@ struct Position {
 
 @group(1) @binding(0)
 var<storage, read_write> particles_pos: array<Position>;
+@group(1) @binding(6)
+var<storage, read_write> rigid_particle_needs_block: array<u32>;
 
 @compute @workgroup_size(GRID_WORKGROUP_SIZE, 1, 1)
 fn touch_particle_blocks(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
@@ -213,6 +243,22 @@ fn touch_particle_blocks(@builtin(global_invocation_id) invocation_id: vec3<u32>
         var blocks = blocks_associated_to_point(particle.pt);
         for (var i = 0u; i < NUM_ASSOC_BLOCKS; i += 1u) {
             mark_block_as_active(blocks[i]);
+        }
+    }
+}
+
+@compute @workgroup_size(GRID_WORKGROUP_SIZE, 1, 1)
+fn touch_rigid_particle_blocks(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
+    let id = invocation_id.x;
+    if id < arrayLength(&particles_pos) {
+        let entry_id = id / 32u;
+        let entry_bit = 1u << (id % 32u);
+        let needs_block = (rigid_particle_needs_block[entry_id] & entry_bit) != 0;
+
+        if needs_block {
+            let particle = particles_pos[id];
+            var block = block_associated_to_point(particle.pt);
+            mark_block_as_active(block);
         }
     }
 }

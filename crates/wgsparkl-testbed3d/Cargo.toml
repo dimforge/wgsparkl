@@ -13,8 +13,8 @@ path = "../../src_testbed/lib.rs"
 required-features = ["dim3"]
 
 [features]
+default = ["dim3"]
 dim3 = []
-default_features = ["dim3"]
 
 [dependencies]
 nalgebra = { workspace = true, features = ["rand"] }
@@ -23,17 +23,25 @@ naga_oil = { workspace = true }
 bytemuck = { workspace = true }
 async-channel = { workspace = true }
 
-wgcore = { version = "0.2", path = "../../../wgmath/crates/wgcore" }
-wgebra = { version = "0.2", path = "../../../wgmath/crates/wgebra" }
-wgparry3d = { version = "0.2", path = "../../../wgmath/crates/wgparry/crates/wgparry3d" }
+wgcore = "0.2"
+wgebra = "0.2"
+wgparry3d = "0.2"
 
 futures-test = "0.3"
 serial_test = "3"
 approx = "0.5"
 async-std = { version = "1", features = ["attributes"] }
-bevy = { version = "0.15.0", features = ["shader_format_glsl", "shader_format_spirv", "webgpu"] }
-#bevy_editor_cam = "0.3"
+bevy = { version = "0.15.0", features = [
+    "shader_format_glsl",
+    "shader_format_spirv",
+    "webgpu",
+] }
+bevy_editor_cam = "0.5"
 #bevy_mod_picking = { version = "0.20", default-features = false }
 #bevy_wasm_window_resize = "0.4"
-bevy_egui = { version = "0.31", default-features = false, features = ["default_fonts", "render"] }
+bevy_egui = { version = "0.31", default-features = false, features = [
+    "default_fonts",
+    "render",
+] }
 wgsparkl3d = { path = "../wgsparkl3d" }
+futures = "0.3"

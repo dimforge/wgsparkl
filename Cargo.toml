@@ -4,6 +4,9 @@ members = [
     "crates/wgsparkl-testbed3d",
     "crates/wgsparkl2d",
     "crates/wgsparkl3d",
+    "crates/text_to_collider",
+    "examples3d",
+    "examples2d",
 ]
 resolver = "2"
 
@@ -23,6 +26,31 @@ rust.unexpected_cfgs = { level = "warn", check-cfg = [
 ] }
 
 [patch.crates-io]
+# parry2d = { path = "../parry/crates/parry2d" }
+# parry3d = { path = "../parry/crates/parry3d" }
+# encase = { path = "../encase" }
+# wgcore = { path = "../wgmath/crates/wgcore" }
+# wgebra = { path = "../wgmath/crates/wgebra" }
+# wgparry2d = { path = "../wgmath/crates/wgparry/crates/wgparry2d" }
+# wgparry3d = { path = "../wgmath/crates/wgparry/crates/wgparry3d" }
+# wgrapier2d = { path = "../wgmath/crates/wgrapier/crates/wgrapier2d" }
+# wgrapier3d = { path = "../wgmath/crates/wgrapier/crates/wgrapier3d" }
+
+parry2d = { git = "https://github.com/dimforge/parry.git", rev = "407fb449504dde7ba0a3d80a8de7e37ac991a77a" }
+parry3d = { git = "https://github.com/dimforge/parry.git", rev = "407fb449504dde7ba0a3d80a8de7e37ac991a77a" }
+encase = { git = "https://github.com/sebcrozet/encase.git", rev = "6755c1414c225cbeac9fde1ff9394b70d3b05404" }
+# wgcore = { git = "https://github.com/dimforge/wgmath.git", rev = "32b54c802be6040c5f003e7d3def4a33e4730d92" }
+wgcore = { git = "https://github.com/dimforge/wgmath.git", branch = "wgml-chat" }
+wgcore-derive = { git = "https://github.com/dimforge/wgmath.git", branch = "wgml-chat" }
+wgebra = { git = "https://github.com/dimforge/wgmath.git", branch = "wgml-chat" }
+# wgparry2d = { git = "https://github.com/dimforge/wgmath.git", rev = "32b54c802be6040c5f003e7d3def4a33e4730d92" }
+wgparry3d = { git = "https://github.com/dimforge/wgmath.git", branch = "wgml-chat" }
+# wgrapier2d = { git = "https://github.com/dimforge/wgmath.git", rev = "32b54c802be6040c5f003e7d3def4a33e4730d92" }
+wgrapier3d = { git = "https://github.com/dimforge/wgmath.git", branch = "wgml-chat" }
+rapier3d = { git = "https://github.com/vrixyz/rapier.git", branch = "uber_physics_context" }
 
 [profile.release]
 opt-level = 'z'
+
+[profile.dev]
+opt-level = 1

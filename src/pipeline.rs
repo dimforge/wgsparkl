@@ -1,20 +1,25 @@
 use crate::grid::grid::{GpuGrid, WgGrid};
 use crate::grid::prefix_sum::{PrefixSumWorkspace, WgPrefixSum};
+#[cfg(target_os = "macos")]
+use crate::grid::sort::TouchParticleBlocks;
 use crate::grid::sort::WgSort;
 use crate::models::GpuModels;
 use crate::solver::{
-    GpuParticles, GpuSimulationParams, Particle, SimulationParams, WgG2P, WgGridUpdate, WgP2G,
-    WgParticleUpdate,
+    GpuImpulses, GpuParticles, GpuRigidParticles, GpuSimulationParams, Particle, SimulationParams,
+    WgG2P, WgG2PCdf, WgGridUpdate, WgGridUpdateCdf, WgP2G, WgP2GCdf, WgParticleUpdate,
+    WgRigidImpulses, WgRigidParticleUpdate,
 };
 use naga_oil::compose::ComposerError;
+use rapier::dynamics::{RigidBodyHandle, RigidBodySet};
+use rapier::geometry::{ColliderHandle, ColliderSet};
 use wgcore::hot_reloading::HotReloadState;
 use wgcore::kernel::KernelInvocationQueue;
+use wgcore::tensor::GpuVector;
 use wgcore::Shader;
-use wgpu::Device;
+use wgparry::math::GpuSim;
+use wgpu::{BufferUsages, Device};
+use wgrapier::dynamics::body::{BodyCoupling, BodyCouplingEntry};
 use wgrapier::dynamics::{BodyDesc, GpuBodySet, WgIntegrate};
-
-#[cfg(target_os = "macos")]
-use crate::grid::sort::TouchParticleBlocks;
 
 pub struct MpmPipeline {
     grid: WgGrid,
@@ -23,10 +28,14 @@ pub struct MpmPipeline {
     #[cfg(target_os = "macos")]
     touch_particle_blocks: TouchParticleBlocks,
     p2g: WgP2G,
+    p2g_cdf: WgP2GCdf,
+    grid_update_cdf: WgGridUpdateCdf,
     grid_update: WgGridUpdate,
     particles_update: WgParticleUpdate,
     g2p: WgG2P,
-    integrate_bodies: WgIntegrate,
+    g2p_cdf: WgG2PCdf,
+    rigid_particles_update: WgRigidParticleUpdate,
+    pub impulses: WgRigidImpulses,
 }
 
 impl MpmPipeline {
@@ -35,10 +44,15 @@ impl MpmPipeline {
         WgPrefixSum::watch_sources(state).unwrap(); // TODO: don’t unwrap
         WgSort::watch_sources(state).unwrap(); // TODO: don’t unwrap
         WgP2G::watch_sources(state).unwrap(); // TODO: don’t unwrap
+        WgP2GCdf::watch_sources(state).unwrap(); // TODO: don’t unwrap
         WgGridUpdate::watch_sources(state).unwrap(); // TODO: don’t unwrap
+        WgGridUpdateCdf::watch_sources(state).unwrap(); // TODO: don’t unwrap
         WgParticleUpdate::watch_sources(state).unwrap(); // TODO: don’t unwrap
         WgG2P::watch_sources(state).unwrap(); // TODO: don’t unwrap
+        WgG2PCdf::watch_sources(state).unwrap(); // TODO: don’t unwrap
         WgIntegrate::watch_sources(state).unwrap(); // TODO: don’t unwrap
+        WgRigidImpulses::watch_sources(state).unwrap(); // TODO: don’t unwrap
+        WgRigidParticleUpdate::watch_sources(state).unwrap(); // TODOO: don’t unwrap
     }
 
     pub fn reload_if_changed(
@@ -51,22 +65,38 @@ impl MpmPipeline {
         changed = self.prefix_sum.reload_if_changed(device, state)? || changed;
         changed = self.sort.reload_if_changed(device, state)? || changed;
         changed = self.p2g.reload_if_changed(device, state)? || changed;
+        changed = self.p2g_cdf.reload_if_changed(device, state)? || changed;
         changed = self.grid_update.reload_if_changed(device, state)? || changed;
+        changed = self.grid_update_cdf.reload_if_changed(device, state)? || changed;
         changed = self.particles_update.reload_if_changed(device, state)? || changed;
         changed = self.g2p.reload_if_changed(device, state)? || changed;
-        changed = self.integrate_bodies.reload_if_changed(device, state)? || changed;
+        changed = self.g2p_cdf.reload_if_changed(device, state)? || changed;
+        changed = self.impulses.reload_if_changed(device, state)? || changed;
+        changed = self
+            .rigid_particles_update
+            .reload_if_changed(device, state)?
+            || changed;
 
         Ok(changed)
     }
+}
+
+pub struct PhysicsData<'a> {
+    bodies: &'a RigidBodySet,
+    colliders: &'a ColliderSet,
 }
 
 pub struct MpmData {
     pub sim_params: GpuSimulationParams,
     pub grid: GpuGrid,
     pub particles: GpuParticles, // TODO: keep private?
+    pub rigid_particles: GpuRigidParticles,
     pub bodies: GpuBodySet,
+    pub impulses: GpuImpulses,
+    pub poses_staging: GpuVector<GpuSim>,
     prefix_sum: PrefixSumWorkspace,
     models: GpuModels,
+    coupling: Vec<BodyCouplingEntry>,
 }
 
 impl MpmData {
@@ -74,25 +104,76 @@ impl MpmData {
         device: &Device,
         params: SimulationParams,
         particles: &[Particle],
-        bodies: &[BodyDesc],
+        bodies: &RigidBodySet,
+        colliders: &ColliderSet,
         cell_width: f32,
         grid_capacity: u32,
     ) -> Self {
+        let coupling: Vec<_> = colliders
+            .iter()
+            .filter_map(|(co_handle, co)| {
+                let rb_handle = co.parent()?;
+                Some(BodyCouplingEntry {
+                    body: rb_handle,
+                    collider: co_handle,
+                    mode: BodyCoupling::TwoWays,
+                })
+            })
+            .collect();
+        Self::with_select_coupling(
+            device,
+            params,
+            particles,
+            bodies,
+            colliders,
+            coupling,
+            cell_width,
+            grid_capacity,
+        )
+    }
+
+    pub fn with_select_coupling(
+        device: &Device,
+        params: SimulationParams,
+        particles: &[Particle],
+        bodies: &RigidBodySet,
+        colliders: &ColliderSet,
+        coupling: Vec<BodyCouplingEntry>,
+        cell_width: f32,
+        grid_capacity: u32,
+    ) -> Self {
+        let sampling_step = cell_width; // TODO: * 1.5 ?
+        let bodies = GpuBodySet::from_rapier(device, bodies, colliders, &coupling);
         let sim_params = GpuSimulationParams::new(device, params);
         let models = GpuModels::from_particles(device, particles);
         let particles = GpuParticles::from_particles(device, particles);
+        let rigid_particles =
+            GpuRigidParticles::from_rapier(device, colliders, &bodies, &coupling, sampling_step);
         let grid = GpuGrid::with_capacity(device, grid_capacity, cell_width);
         let prefix_sum = PrefixSumWorkspace::with_capacity(device, grid_capacity);
-        let bodies = GpuBodySet::new(device, bodies);
+        let impulses = GpuImpulses::new(device);
+        let poses_staging = GpuVector::uninit(
+            device,
+            bodies.len(),
+            BufferUsages::COPY_DST | BufferUsages::MAP_READ,
+        );
 
         Self {
             sim_params,
             particles,
+            rigid_particles,
             bodies,
+            impulses,
             grid,
             prefix_sum,
             models,
+            poses_staging,
+            coupling,
         }
+    }
+
+    pub fn coupling(&self) -> &[BodyCouplingEntry] {
+        &self.coupling
     }
 }
 
@@ -103,12 +184,16 @@ impl MpmPipeline {
             prefix_sum: WgPrefixSum::from_device(device)?,
             sort: WgSort::from_device(device)?,
             p2g: WgP2G::from_device(device)?,
+            p2g_cdf: WgP2GCdf::from_device(device)?,
             grid_update: WgGridUpdate::from_device(device)?,
+            grid_update_cdf: WgGridUpdateCdf::from_device(device)?,
             particles_update: WgParticleUpdate::from_device(device)?,
+            rigid_particles_update: WgRigidParticleUpdate::from_device(device)?,
             g2p: WgG2P::from_device(device)?,
-            integrate_bodies: WgIntegrate::from_device(device)?,
+            g2p_cdf: WgG2PCdf::from_device(device)?,
             #[cfg(target_os = "macos")]
             touch_particle_blocks: TouchParticleBlocks::from_device(device),
+            impulses: WgRigidImpulses::from_device(device)?,
         })
     }
 
@@ -118,10 +203,17 @@ impl MpmPipeline {
         queue: &mut KernelInvocationQueue<'a>,
         add_timestamps: bool,
     ) {
-        queue.compute_pass("grid sort", add_timestamps);
+        queue.compute_pass("update rigid particles", add_timestamps);
 
+        self.impulses
+            .queue_update_world_mass_properties(queue, &data.impulses, &data.bodies);
+        self.rigid_particles_update
+            .queue(queue, &data.bodies, &data.rigid_particles);
+
+        queue.compute_pass("grid sort", add_timestamps);
         self.grid.queue_sort(
             &data.particles,
+            &data.rigid_particles,
             &data.grid,
             &mut data.prefix_sum,
             &self.sort,
@@ -130,19 +222,46 @@ impl MpmPipeline {
             &self.prefix_sum,
             queue,
         );
+        self.sort
+            .queue_sort_rigid_particles(&data.rigid_particles, &data.grid, queue);
+
+        queue.compute_pass("grid_update_cdf", add_timestamps);
+
+        self.grid_update_cdf
+            .queue(queue, &data.sim_params, &data.grid, &data.bodies);
+
+        queue.compute_pass("p2g_cdf", add_timestamps);
+
+        self.p2g_cdf
+            .queue(queue, &data.grid, &data.rigid_particles, &data.bodies);
+
+        queue.compute_pass("g2p_cdf", add_timestamps);
+
+        self.g2p_cdf
+            .queue(queue, &data.sim_params, &data.grid, &data.particles);
 
         queue.compute_pass("p2g", add_timestamps);
-        self.p2g.queue(queue, &data.grid, &data.particles);
+        self.p2g.queue(
+            queue,
+            &data.grid,
+            &data.particles,
+            &data.impulses,
+            &data.bodies,
+        );
 
         queue.compute_pass("grid_update", add_timestamps);
 
-        self.grid_update
-            .queue(queue, &data.sim_params, &data.grid, &data.bodies);
+        self.grid_update.queue(queue, &data.sim_params, &data.grid);
 
         queue.compute_pass("g2p", add_timestamps);
 
-        self.g2p
-            .queue(queue, &data.sim_params, &data.grid, &data.particles);
+        self.g2p.queue(
+            queue,
+            &data.sim_params,
+            &data.grid,
+            &data.particles,
+            &data.bodies,
+        );
 
         queue.compute_pass("particles_update", add_timestamps);
 
@@ -158,15 +277,22 @@ impl MpmPipeline {
         queue.compute_pass("integrate_bodies", add_timestamps);
 
         // TODO: should this be in a separate pipeline? Within wgrapier probably?
-        self.integrate_bodies.queue(queue, &data.bodies);
+        self.impulses.queue(
+            queue,
+            &data.grid,
+            &data.sim_params,
+            &data.impulses,
+            &data.bodies,
+        );
     }
 }
 
 #[cfg(test)]
+#[cfg(feature = "dim3")]
 mod test {
     use crate::grid::grid::GpuGrid;
     use crate::grid::prefix_sum::PrefixSumWorkspace;
-    use crate::models::LinearElasticity;
+    use crate::models::WgLinearElasticity;
     use crate::pipeline::{MpmData, MpmPipeline};
     use crate::solver::{GpuParticles, Particle, ParticleMassProps, SimulationParams};
     use nalgebra::{vector, Vector3};
@@ -191,6 +317,8 @@ mod test {
                         velocity: Vector3::zeros(),
                         volume: ParticleMassProps::new(1.0, cell_width / 4.0),
                         model: LinearElasticity::from_young_modulus(100_000.0, 0.33),
+                        plasticity: None,
+                        phase: None,
                     });
                 }
             }

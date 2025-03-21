@@ -6,36 +6,39 @@
 #import wgsparkl::grid::grid as Grid;
 #import wgsparkl::models::linear_elasticity as ConstitutiveModel;
 #import wgsparkl::models::drucker_prager as DruckerPrager;
+#import wgrapier::body as Body;
 
 @group(1) @binding(0)
 var<storage, read> particles_pos: array<Particle::Position>;
 @group(1) @binding(1)
-var<storage, read_write> particles_vel: array<Particle::Velocity>;
-#if DIM == 2
+var<storage, read_write> particles_dyn: array<Particle::Dynamics>;
 @group(1) @binding(2)
-var<storage, read_write> particles_affine: array<mat2x2<f32>>;
-#else
-@group(1) @binding(2)
-var<storage, read_write> particles_affine: array<mat3x3<f32>>;
-#endif
-@group(1) @binding(3)
 var<storage, read> sorted_particle_ids: array<u32>;
-@group(1) @binding(4)
+@group(1) @binding(3)
 var<uniform> params: Params::SimulationParams;
+
+@group(2) @binding(0)
+var<storage, read> body_vels: array<Body::Velocity>;
+@group(2) @binding(1)
+var<storage, read> body_mprops: array<Body::MassProperties>;
 
 #if DIM == 2
 const WORKGROUP_SIZE_X: u32 = 8;
 const WORKGROUP_SIZE_Y: u32 = 8;
 const WORKGROUP_SIZE_Z: u32 = 1;
 const NUM_SHARED_CELLS: u32 = 10 * 10; // block-size plus 2 from adjacent blocks: (8 + 2)^2
+
+var<workgroup> shared_nodes_vel_mass: array<vec3<f32>, NUM_SHARED_CELLS>;
 #else
 const WORKGROUP_SIZE_X: u32 = 4;
 const WORKGROUP_SIZE_Y: u32 = 4;
 const WORKGROUP_SIZE_Z: u32 = 4;
 const NUM_SHARED_CELLS: u32 = 6 * 6 * 6; // block-size plus 2 from adjacent blocks: (4 + 2)^3
+
+var<workgroup> shared_nodes_vel_mass: array<vec4<f32>, NUM_SHARED_CELLS>;
 #endif
 
-var<workgroup> shared_nodes: array<Grid::Node, NUM_SHARED_CELLS>;
+var<workgroup> shared_nodes_cdf: array<Grid::NodeCdf, NUM_SHARED_CELLS>; // PERF: we don’t need the distance field from the cdf
 
 const WORKGROUP_SIZE: u32 = WORKGROUP_SIZE_X * WORKGROUP_SIZE_Y * WORKGROUP_SIZE_Z;
 @compute @workgroup_size(WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y, WORKGROUP_SIZE_Z)
@@ -56,6 +59,8 @@ fn g2p(
     // Particle update. Runs g2p on shared memory only.
     let max_particle_id = (*active_block).first_particle + (*active_block).num_particles;
 
+    // PERF: could we rely on the particle linked lists instead of the sorted ids?
+    //       That could eliminate the cost of particle sorting.
     for (var sorted_particle_id = (*active_block).first_particle + tid_flat;
          sorted_particle_id < max_particle_id;
          sorted_particle_id += WORKGROUP_SIZE) {
@@ -78,17 +83,19 @@ fn global_shared_memory_transfers(tid: vec3<u32>, active_block_vid: Grid::BlockV
             let octant = vec2(i, j);
             let octant_hid = Grid::find_block_header_id(Grid::BlockVirtualId(base_block_pos_int + vec2<i32>(octant)));
             let shared_index = octant * 8 + tid.xy;
-            let shared_node = &shared_nodes[flatten_shared_index(shared_index.x, shared_index.y)];
+            let flat_shared_index = flatten_shared_index(shared_index.x, shared_index.y);
 
             if octant_hid.id != Grid::NONE {
                 let global_chunk_id = Grid::block_header_id_to_physical_id(octant_hid);
                 let global_node_id = Grid::node_id(global_chunk_id, tid.xy);
-                *shared_node = Grid::nodes[global_node_id.id];
+                shared_nodes_vel_mass[flat_shared_index] = Grid::nodes[global_node_id.id].momentum_velocity_mass;
+                shared_nodes_cdf[flat_shared_index] = Grid::nodes[global_node_id.id].cdf;
             } else {
                 // This octant doesn’t exist. Fill shared memory with zeros/NONE.
                 // NOTE: we don’t need to init global_id since it’s only read for the
                 //       current chunk that is guaranteed to exist, not the 2x2 adjacent ones.
-                *shared_node = Grid::Node(vec3(0.0));
+                shared_nodes_vel_mass[flat_shared_index] = vec3(0.0);
+                shared_nodes_cdf[flat_shared_index] = Grid::NodeCdf(0.0, 0, Grid::NONE);
             }
         }
     }
@@ -104,17 +111,19 @@ fn global_shared_memory_transfers(tid: vec3<u32>, active_block_vid: Grid::BlockV
                 let octant = vec3(i, j, k);
                 let octant_hid = Grid::find_block_header_id(Grid::BlockVirtualId(base_block_pos_int + vec3<i32>(octant)));
                 let shared_index = octant * 4 + tid;
-                let shared_node = &shared_nodes[flatten_shared_index(shared_index.x, shared_index.y, shared_index.z)];
+                let flat_shared_index = flatten_shared_index(shared_index.x, shared_index.y, shared_index.z);
 
                 if octant_hid.id != Grid::NONE {
                     let global_chunk_id = Grid::block_header_id_to_physical_id(octant_hid);
                     let global_node_id = Grid::node_id(global_chunk_id, tid);
-                    *shared_node = Grid::nodes[global_node_id.id];
+                    shared_nodes_vel_mass[flat_shared_index] = Grid::nodes[global_node_id.id].momentum_velocity_mass;
+                    shared_nodes_cdf[flat_shared_index] = Grid::nodes[global_node_id.id].cdf;
                 } else {
                     // This octant doesn’t exist. Fill shared memory with zeros/NONE.
                     // NOTE: we don’t need to init global_id since it’s only read for the
                     //       current chunk that is guaranteed to exist, not the 2x2x2 adjacent ones.
-                    *shared_node = Grid::Node(vec4(0.0));
+                    shared_nodes_vel_mass[flat_shared_index] = vec4(0.0);
+                    shared_nodes_cdf[flat_shared_index] = Grid::NodeCdf(0.0, 0, Grid::NONE);
                 }
             }
         }
@@ -129,9 +138,11 @@ fn particle_g2p(particle_id: u32, cell_width: f32, dt: f32) {
     var NBH_SHIFTS_SHARED = Kernel::NBH_SHIFTS_SHARED;
 
 #if DIM == 2
+    var rigid_vel = vec2<f32>(0.0);
     var momentum_velocity_mass = vec3<f32>(0.0);
     var velocity_gradient = mat2x2<f32>(vec2(0.0), vec2(0.0));
 #else
+    var rigid_vel = vec3<f32>(0.0);
     var momentum_velocity_mass = vec4<f32>(0.0);
     var velocity_gradient = mat3x3<f32>(vec3(0.0), vec3(0.0), vec3(0.0));
 #endif
@@ -139,6 +150,9 @@ fn particle_g2p(particle_id: u32, cell_width: f32, dt: f32) {
     // G2P
     {
         let particle_pos = particles_pos[particle_id];
+        let particle_vel = particles_dyn[particle_id].velocity;
+        let particle_cdf = particles_dyn[particle_id].cdf;
+
         let inv_d = Kernel::inv_d(cell_width);
         let ref_elt_pos_minus_particle_pos = Particle::dir_to_associated_grid_node(particle_pos, cell_width);
         let w = Kernel::precompute_weights(ref_elt_pos_minus_particle_pos, cell_width);
@@ -156,31 +170,70 @@ fn particle_g2p(particle_id: u32, cell_width: f32, dt: f32) {
         for (var i = 0u; i < Kernel::NBH_LEN; i += 1u) {
             let shift = NBH_SHIFTS[i];
             let packed_shift = NBH_SHIFTS_SHARED[i];
+            let shared_id = packed_cell_index_in_block + packed_shift;
+            let cell_data = shared_nodes_vel_mass[shared_id];
+            let cell_cdf = shared_nodes_cdf[shared_id];
+            let is_compatible = Grid::affinities_are_compatible(particle_cdf.affinity, cell_cdf.affinities);
 
 #if DIM == 2
             let dpt = ref_elt_pos_minus_particle_pos + vec2<f32>(shift) * cell_width;
-            let weight = w.x[shift.x] * w.y[shift.y];
-            let cell_data = shared_nodes[packed_cell_index_in_block + packed_shift].momentum_velocity_mass;
-            momentum_velocity_mass += cell_data * weight;
-            velocity_gradient += (weight * inv_d) * outer_product(cell_data.xy, dpt);
 #else
             let dpt = ref_elt_pos_minus_particle_pos + vec3<f32>(shift) * cell_width;
-            let weight = w.x[shift.x] * w.y[shift.y] * w.z[shift.z];
-            let cell_data = shared_nodes[packed_cell_index_in_block + packed_shift].momentum_velocity_mass;
-            momentum_velocity_mass += cell_data * weight;
-            velocity_gradient += (weight * inv_d) * outer_product(cell_data.xyz, dpt);
 #endif
+
+            var cpic_cell_data = cell_data;
+
+            if !is_compatible {
+                if cell_cdf.closest_id != Grid::NONE {
+                    let body_vel = body_vels[cell_cdf.closest_id]; // TODO: invalid if there is no body.
+                    let body_com = body_mprops[cell_cdf.closest_id].com;
+                    let cell_center = dpt + particle_pos.pt;
+                    let body_pt_vel =  Body::velocity_at_point(body_com, body_vel, cell_center);
+                    let particle_ghost_vel = body_pt_vel + Grid::project_velocity(particle_vel - body_pt_vel, particle_cdf.normal);
+
+#if DIM == 2
+                    cpic_cell_data = vec3(particle_ghost_vel, cell_data.z);
+#else
+                    cpic_cell_data = vec4(particle_ghost_vel, cell_data.w);
+#endif
+                } else {
+                    // If there is no adjacent collider, the ghost vel is the particle vel.
+#if DIM == 2
+                    cpic_cell_data = vec3(particle_vel, cell_data.z);
+#else
+                    cpic_cell_data = vec4(particle_vel, cell_data.w);
+#endif
+                }
+            }
+
+#if DIM == 2
+            let weight = w.x[shift.x] * w.y[shift.y];
+            momentum_velocity_mass += cpic_cell_data * weight;
+            velocity_gradient += (weight * inv_d) * outer_product(cpic_cell_data.xy, dpt);
+#else
+            let weight = w.x[shift.x] * w.y[shift.y] * w.z[shift.z];
+            momentum_velocity_mass += cpic_cell_data * weight;
+            velocity_gradient += (weight * inv_d) * outer_product(cpic_cell_data.xyz, dpt);
+#endif
+        }
+
+        for (var i = 0u; i < 16u; i++) {
+            if Grid::affinity_bit(i, particle_cdf.affinity) {
+                let body_vel = body_vels[i];
+                let body_com = body_mprops[i].com;
+                rigid_vel += Body::velocity_at_point(body_com, body_vel, particle_pos.pt);
+            }
         }
     }
 
-
+    particles_dyn[particle_id].cdf.rigid_vel = rigid_vel;
     // Set the particle velocity, and store the velocity gradient into the affine matrix.
     // The rest will be dealt with in the particle update kernel(s).
-    particles_affine[particle_id] = velocity_gradient;
+    particles_dyn[particle_id].affine = velocity_gradient;
 #if DIM == 2
-    particles_vel[particle_id].v = momentum_velocity_mass.xy;
+    particles_dyn[particle_id].velocity = momentum_velocity_mass.xy;
 #else
-    particles_vel[particle_id].v = momentum_velocity_mass.xyz;
+    particles_dyn[particle_id].velocity = momentum_velocity_mass.xyz;
 #endif
 }
 

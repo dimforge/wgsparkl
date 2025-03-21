@@ -23,16 +23,14 @@ naga_oil = { workspace = true }
 bytemuck = { workspace = true }
 encase = { workspace = true }
 
-wgcore = { version = "0.2", path = "../../../wgmath/crates/wgcore", features = ["hot_reloading"] }
-wgebra = { version = "0.2", path = "../../../wgmath/crates/wgebra" }
-wgparry2d = { version = "0.2", path = "../../../wgmath/crates/wgparry/crates/wgparry2d" }
-wgrapier2d = { version = "0.2", path = "../../../wgmath/crates/wgrapier/crates/wgrapier2d" }
+wgcore = "0.2"
+wgebra = "0.2"
+wgparry2d = "0.2"
+wgrapier2d = "0.2"
 
-[dev-dependencies]
-nalgebra = { version = "0.33", features = ["rand"] }
-futures-test = "0.3"
-serial_test = "3"
-approx = "0.5"
-async-std = { version = "1", features = ["attributes"] }
-bevy = { version = "0.15.0", features = ["shader_format_glsl", "shader_format_spirv", "webgpu"] }
-wgsparkl_testbed2d = { path = "../wgsparkl-testbed2d" }
+# TODO: make rapier optional?
+rapier2d = "0.23"
+
+# For wasm?
+getrandom = { version = "0.3.1", features = ["wasm_js"] }
+uuid = { version = "1", features = ["js"] }

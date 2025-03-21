@@ -1,7 +1,8 @@
 use crate::instancing::{InstanceBuffer, InstanceData, InstanceMaterialData};
 use crate::prep_vertex_buffer::{GpuRenderConfig, RenderConfig, RenderMode, WgPrepVertexBuffer};
+use crate::rigid_graphics::{BevyMaterial, EntityWithGraphics, InstancedMaterials};
 use crate::step::TimestampChannel;
-use crate::{AppState, PhysicsContext, RunState, Timestamps};
+use crate::{AppState, Callbacks, PhysicsContext, RenderContext, RunState, Timestamps};
 use bevy::asset::Assets;
 use bevy::color::Color;
 use bevy::hierarchy::DespawnRecursiveExt;
@@ -11,7 +12,9 @@ use bevy::prelude::*;
 use bevy::render::render_resource::BufferUsages;
 use bevy::render::renderer::RenderDevice;
 use bevy::render::view::NoFrustumCulling;
-// use bevy_editor_cam::prelude::{EditorCam, EnabledMotion};
+use bevy_editor_cam::prelude::{EditorCam, EnabledMotion};
+use nalgebra::point;
+use std::collections::HashMap;
 use std::sync::Arc;
 use wgcore::hot_reloading::HotReloadState;
 use wgcore::tensor::GpuVector;
@@ -19,6 +22,7 @@ use wgcore::timestamps::GpuTimestamps;
 use wgcore::Shader;
 use wgpu::Features;
 use wgsparkl::pipeline::MpmPipeline;
+use wgsparkl::rapier::parry::math::Isometry;
 
 /// set up a simple 3D scene
 pub fn setup_app(mut commands: Commands, device: Res<RenderDevice>) {
@@ -42,7 +46,10 @@ pub fn setup_app(mut commands: Commands, device: Res<RenderDevice>) {
         restarting: false,
         selected_scene: 0,
         hot_reload,
+        show_rigid_particles: false,
+        physics_time_seconds: 0.0,
     });
+    commands.init_resource::<RenderContext>();
 
     let (snd, rcv) = async_channel::unbounded();
     commands.insert_resource(TimestampChannel { snd, rcv });
@@ -50,7 +57,7 @@ pub fn setup_app(mut commands: Commands, device: Res<RenderDevice>) {
     let features = device.features();
     let timestamps = features
         .contains(Features::TIMESTAMP_QUERY)
-        .then(|| GpuTimestamps::new(device.wgpu_device(), 256));
+        .then(|| GpuTimestamps::new(device.wgpu_device(), 512));
     commands.insert_resource(Timestamps {
         timestamps,
         ..Default::default()
@@ -74,14 +81,14 @@ pub fn setup_app(mut commands: Commands, device: Res<RenderDevice>) {
                 // }),
                 ..default()
             },
-            // EditorCam {
-            //     enabled_motion: EnabledMotion {
-            //         orbit: false,
-            //         ..Default::default()
-            //     },
-            //     last_anchor_depth: -99.0,
-            //     ..Default::default()
-            // },
+            EditorCam {
+                enabled_motion: EnabledMotion {
+                    orbit: false,
+                    ..Default::default()
+                },
+                last_anchor_depth: -99.0,
+                ..Default::default()
+            },
         ));
     }
 
@@ -92,19 +99,62 @@ pub fn setup_app(mut commands: Commands, device: Res<RenderDevice>) {
                 transform: Transform::from_translation(Vec3::new(0.0, 1.5, 5.0)),
                 ..default()
             },
-            // EditorCam::default(),
+            EditorCam::default(),
         ));
     }
 }
 
-pub fn setup_graphics(
-    mut commands: Commands,
-    device: Res<RenderDevice>,
-    physics: Res<PhysicsContext>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    to_clear: Query<Entity, With<InstanceMaterialData>>,
+fn setup_rapier_graphics(
+    commands: &mut Commands,
+    device: &RenderDevice,
+    physics: &PhysicsContext,
+    rigid_render: &mut RenderContext,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<BevyMaterial>,
+    to_clear: &Query<Entity, With<InstanceMaterialData>>,
 ) {
-    if let Ok(to_clear) = to_clear.get_single() {
+    for rigid in rigid_render.rigid_entities.drain(..) {
+        commands.entity(rigid.entity).despawn_recursive();
+    }
+
+    for (handle, collider) in physics.rapier_data.colliders.iter() {
+        let parent = &physics.rapier_data.bodies[collider.parent().unwrap()];
+        let color = if parent.is_fixed() {
+            point![0.5, 0.5, 0.5]
+        } else if parent.is_kinematic() {
+            point![0.0, 0.0, 1.0]
+        } else {
+            point![0.0, 1.0, 0.0]
+        };
+        let e = EntityWithGraphics::spawn(
+            commands,
+            meshes,
+            materials,
+            &mut rigid_render.prefab_meshes,
+            &mut rigid_render.instanced_materials,
+            collider.shape(),
+            Some(handle),
+            *collider.position(),
+            Isometry::identity(), // TODO
+            color,
+            false,
+        );
+        rigid_render.rigid_entities.push(e);
+    }
+}
+
+#[derive(Component)]
+pub struct RigidParticlesTag;
+
+fn setup_particles_graphics(
+    commands: &mut Commands,
+    device: &RenderDevice,
+    app_state: &AppState,
+    physics: &PhysicsContext,
+    meshes: &mut Assets<Mesh>,
+    to_clear: &Query<Entity, With<InstanceMaterialData>>,
+) {
+    for to_clear in to_clear.iter() {
         commands.entity(to_clear).despawn_recursive();
     }
 
@@ -117,14 +167,20 @@ pub fn setup_graphics(
         Color::srgb_u8(200, 37, 255),
         Color::srgb_u8(124, 230, 25),
     ];
-    let radius = physics.particles[0].volume.init_radius();
+    let radius = physics.particles[0].dynamics.init_radius;
     let cube = meshes.add(Cuboid {
         half_size: Vec3::splat(radius),
     });
 
+    /*
+     * Particles rendering.
+     */
     let mut instances = vec![];
     for (rb_id, particle) in physics.particles.iter().enumerate() {
-        let base_color = colors[rb_id % colors.len()].to_linear().to_f32_array();
+        let base_color = particle.color.map_or_else(
+            || colors[rb_id % colors.len()].to_linear().to_f32_array(),
+            |c| c.map(|c| c as f32 / 255f32),
+        );
         instances.push(InstanceData {
             deformation: [Vec4::X, Vec4::Y, Vec4::Z],
             #[cfg(feature = "dim2")]
@@ -149,7 +205,7 @@ pub fn setup_graphics(
 
     let num_instances = instances.len();
     commands.spawn((
-        Mesh3d(cube),
+        Mesh3d(cube.clone()),
         SpatialBundle::INHERITED_IDENTITY,
         InstanceMaterialData {
             data: instances,
@@ -160,4 +216,81 @@ pub fn setup_graphics(
         },
         NoFrustumCulling,
     ));
+
+    /*
+     * Rigid particles rendering.
+     */
+    if !physics.data.rigid_particles.is_empty() {
+        let mut instances = vec![];
+        for id in 0..physics.data.rigid_particles.len() as usize {
+            let base_color = colors[id % colors.len()].to_linear().to_f32_array();
+            instances.push(InstanceData {
+                base_color,
+                color: base_color,
+                ..Default::default()
+            });
+        }
+
+        let instances_buffer = GpuVector::init(
+            device,
+            &instances,
+            BufferUsages::STORAGE | BufferUsages::VERTEX,
+        );
+
+        let num_instances = instances.len();
+        let visibility = if app_state.show_rigid_particles {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        };
+
+        commands.spawn((
+            Mesh3d(cube),
+            Transform::IDENTITY,
+            visibility,
+            InstanceMaterialData {
+                data: instances,
+                buffer: InstanceBuffer {
+                    buffer: Arc::new(instances_buffer.into_inner().into()),
+                    length: num_instances,
+                },
+            },
+            NoFrustumCulling,
+            RigidParticlesTag,
+        ));
+    }
+}
+
+pub fn setup_graphics(
+    mut commands: Commands,
+    app_state: Res<AppState>,
+    device: Res<RenderDevice>,
+    physics: Res<PhysicsContext>,
+    mut rigid_render: ResMut<RenderContext>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<BevyMaterial>>,
+    to_clear: Query<Entity, With<InstanceMaterialData>>,
+) {
+    setup_particles_graphics(
+        &mut commands,
+        &device,
+        &app_state,
+        &physics,
+        &mut meshes,
+        &to_clear,
+    );
+    setup_rapier_graphics(
+        &mut commands,
+        &device,
+        &physics,
+        &mut rigid_render,
+        &mut meshes,
+        &mut materials,
+        &to_clear,
+    );
+}
+
+pub fn setup_app_state(mut app_state: ResMut<AppState>, mut callbacks: ResMut<Callbacks>) {
+    app_state.physics_time_seconds = 0.0;
+    callbacks.0.clear();
 }
