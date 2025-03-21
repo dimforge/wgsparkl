@@ -1,19 +1,17 @@
 use crate::instancing::InstanceMaterialData;
 use crate::startup::RigidParticlesTag;
-use crate::{AppState, CallBeforeSimulation, PhysicsContext, RunState, Timestamps};
+use crate::{AppState, Callbacks, PhysicsContext, RenderContext, RunState, Timestamps};
 use async_channel::{Receiver, Sender};
 use bevy::prelude::*;
-use bevy::render::renderer::{RenderDevice, RenderQueue, WgpuWrapper};
+use bevy::render::renderer::{RenderDevice, RenderQueue};
 use bevy::tasks::ComputeTaskPool;
-use std::time::Instant;
 use wgcore::kernel::KernelInvocationQueue;
 use wgcore::re_exports::encase::StorageBuffer;
 use wgcore::timestamps::GpuTimestamps;
-use wgpu::{Device, Queue};
 use wgsparkl::rapier::math::Vector;
 use wgsparkl::rapier::prelude::RigidBodyPosition;
 use wgsparkl::wgparry::math::GpuSim;
-use wgsparkl::wgrapier::dynamics::{GpuBodySet, GpuVelocity};
+use wgsparkl::wgrapier::dynamics::GpuVelocity;
 
 #[derive(Resource)]
 pub struct TimestampChannel {
@@ -21,9 +19,22 @@ pub struct TimestampChannel {
     pub rcv: Receiver<Timestamps>,
 }
 
-pub fn call_before_simulation(mut commands: Commands, to_call: Query<&CallBeforeSimulation>) {
-    for to_call in to_call.iter() {
-        commands.run_system(to_call.0);
+pub fn callbacks(
+    render_queue: ResMut<RenderQueue>,
+    mut render: ResMut<RenderContext>,
+    mut physics: ResMut<PhysicsContext>,
+    app_state: ResMut<AppState>,
+    timings: Res<Timestamps>,
+    mut callbacks: ResMut<Callbacks>,
+) {
+    for to_call in callbacks.0.iter_mut() {
+        to_call(
+            Some(&mut render),
+            &mut physics,
+            timings.as_ref(),
+            &app_state,
+            render_queue.clone(),
+        );
     }
 }
 

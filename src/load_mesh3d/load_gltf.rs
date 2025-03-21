@@ -1,45 +1,16 @@
-#![allow(unused)]
-
-use bevy::{
-    asset::RenderAssetUsages,
-    color::{palettes::css, Color},
-    math::Vec3,
-    prelude::*,
-    render::mesh::{Indices, Mesh},
-};
+use f32 as Real;
 use image::RgbaImage;
-use nalgebra::{Matrix4, Point3};
-use std::{fs::File, io::Read};
-use wgpu::PrimitiveTopology;
+use nalgebra::{distance_squared, Matrix4, Point3, Transform3};
 
-#[path = "extract_mesh.rs"]
-mod extract_mesh;
+use super::get_point_cloud_from_trimesh;
 
-#[derive(Component)]
-pub struct PointCloud {
-    pub positions: Vec<(Vec3, Color)>,
-}
-
-fn extract_embedded_texture<'a>(
+fn extract_embedded_texture(
     gltf: &gltf::Document,
-    buffers: &'a [gltf::buffer::Data],
+    buffers: &[gltf::buffer::Data],
 ) -> Option<RgbaImage> {
-    for mat in gltf.materials() {
-        dbg!(mat.name());
-        if (mat.name() == Some("Body_SG1")) {
-            // dbg!(&mat);
-        }
-
-        let Some(texture) = mat.pbr_metallic_roughness().base_color_texture() else {
-            continue;
-        };
-        dbg!(texture.texture().name());
-    }
     for image in gltf.images() {
-        //dbg!(tex.name());
-        //let image = tex.source();
         dbg!(image.name());
-        if let gltf::image::Source::View { view, mime_type } = image.source() {
+        if let gltf::image::Source::View { view, .. } = image.source() {
             let buffer = &buffers[view.buffer().index()];
             let start = view.offset();
             let end = start + view.length();
@@ -66,80 +37,61 @@ fn sample_texture(texture: &RgbaImage, uv: [f32; 2]) -> [u8; 4] {
     texture.get_pixel(x, y).0
 }
 
-fn closest_point(target: Vec3, points: &[(Vec3, Color)]) -> Option<&(Vec3, Color)> {
+fn closest_point(
+    target: Point3<f32>,
+    points: &[(Point3<f32>, [u8; 4])],
+) -> Option<&(Point3<f32>, [u8; 4])> {
     points.iter().min_by(|a, b| {
-        a.0.distance_squared(target)
-            .partial_cmp(&b.0.distance_squared(target))
+        distance_squared(&a.0, &target)
+            .partial_cmp(&distance_squared(&b.0, &target))
             .unwrap()
     })
 }
 
 // TODO: transform should not be here, but when we spawn the model.
 // this function should have a "resolution" like the amount of points to sample in x/y/z.
-pub fn load_model_with_colors(
-    path: &str,
-    transform: Transform,
-    color_inside: Option<Color>,
-) -> Vec<(Vec3, Color)> {
-    // Replace with your actual GLB file path
-    let mut res = load_model_with_point_cloud(path);
+/// Load a glb or gltf file and return a point cloud and a list of trimeshes.
+///
+/// ```
+/// let mut file = File::open("path_to_file.glb").expect("Failed to open GLB file");
+/// let mut buffer = Vec::new();
+/// file.read_to_end(&mut buffer).expect("Failed to read file");
+///
+/// let _ = load_model_with_colors(&buffer);
+/// ```
+pub fn load_model_with_colors<S>(
+    slice: S,
+    transform: Transform3<Real>,
+    color_inside: Option<[u8; 4]>,
+    sample_per_unit: f32,
+) -> Vec<(Point3<Real>, [u8; 4])>
+where
+    S: AsRef<[u8]>,
+{
+    let mut res = load_model_with_vertex_colors(slice);
     let mut pc_grid = vec![];
-
-    let colors = [
-        css::BLUE,
-        css::RED,
-        css::GREEN,
-        css::YELLOW,
-        css::SEASHELL,
-        css::MAGENTA,
-        css::WHITE,
-        css::BLACK,
-        css::BROWN,
-    ];
-    // TODO: load real gltf model to add a comparison
-    // commands.spawn((
-    //     Transform::from_xyz(0.0, 0.0, 0.0),
-    //     SceneRoot(asset_server.load(GltfAssetLabel::Scene(0).from_asset("car/scene.gltf"))),
-    // ));
 
     res.0
         .iter_mut()
-        .for_each(|p| p.0 = transform.transform_point(p.0));
+        .for_each(|p| p.0 = transform.transform_point(&p.0));
 
-    for (t_id, mut trimesh) in res.1.iter_mut().enumerate() {
+    for (t_id, trimesh) in res.1.iter_mut().enumerate() {
         if t_id != 0 {
             //continue;
         }
-        let color = Color::from(colors[t_id % colors.len()]);
-        let mut mesh = Mesh::new(
-            PrimitiveTopology::TriangleList,
-            RenderAssetUsages::MAIN_WORLD | RenderAssetUsages::RENDER_WORLD,
-        )
-        .with_inserted_attribute(
-            Mesh::ATTRIBUTE_POSITION,
-            trimesh
-                .0
-                .iter()
-                .map(|p| Vec3::new(p.x, p.y, p.z))
-                .collect::<Vec<_>>(),
-        )
-        .with_inserted_indices(Indices::U32(trimesh.1.iter().map(|i| *i as u32).collect()));
-        mesh.duplicate_vertices();
-        mesh.compute_flat_normals();
-
         trimesh.0.iter_mut().for_each(|p| {
-            let new_p = transform.transform_point(Vec3::new(p.x, p.y, p.z));
+            let new_p = transform.transform_point(&Point3::new(p.x, p.y, p.z));
             *p = Point3::new(new_p.x, new_p.y, new_p.z);
         });
-        let mut pc = extract_mesh::get_point_cloud_from_trimesh(&trimesh.0, &trimesh.1, 10.0)
+        let mut pc = get_point_cloud_from_trimesh(&trimesh.0, &trimesh.1, sample_per_unit)
             .into_iter()
             .map(|p| {
                 let closest_color = closest_point(p, &res.0).unwrap();
                 if let Some(color_inside) = color_inside {
-                    let distance = p.distance(closest_color.0);
+                    let distance = distance_squared(&p, &closest_color.0);
                     (
                         p,
-                        if distance <= 0.2 {
+                        if distance <= 0.04 {
                             closest_color.1
                         } else {
                             color_inside
@@ -160,7 +112,7 @@ fn get_node_transform(node: &gltf::Node, parent_transform: Matrix4<f32>) -> Matr
     parent_transform * Matrix4::from_column_slice(&matrix.concat())
 }
 
-struct SceneIterator<'a, T, F>
+pub struct SceneIterator<'a, T, F>
 where
     F: Fn(&gltf::Primitive, &Matrix4<f32>) -> T + 'a,
 {
@@ -195,7 +147,7 @@ where
             let world_transform = get_node_transform(&node, parent_transform);
 
             if let Some(mesh) = node.mesh() {
-                for primitive in mesh.primitives() {
+                if let Some(primitive) = mesh.primitives().next() {
                     return Some((self.process_primitive)(&primitive, &world_transform));
                 }
             }
@@ -208,17 +160,27 @@ where
     }
 }
 
-fn load_model_with_point_cloud(
-    path: &str,
+/// Load a glb or gltf file into vertices and indices and its vertex colors from sampled texture.
+///
+/// ```
+/// let mut file = File::open("path_to_file.glb").expect("Failed to open GLB file");
+/// let mut buffer = Vec::new();
+/// file.read_to_end(&mut buffer).expect("Failed to read file");
+///
+/// let (gltf, buffers, _) = gltf::import_slice(slice).expect("Failed to parse GLB");
+///
+/// let _ = load_model_with_point_cloud(&buffer);
+/// ```
+pub fn load_model_with_vertex_colors<S>(
+    slice: S,
 ) -> (
-    Vec<(Vec3, Color)>,
+    Vec<(nalgebra::Point3<f32>, [u8; 4])>,
     Vec<(Vec<nalgebra::Point3<f32>>, Vec<usize>)>,
-) {
-    let mut file = File::open(path).expect("Failed to open GLB file");
-    let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer).expect("Failed to read file");
-
-    let (gltf, buffers, _) = gltf::import_slice(&buffer).expect("Failed to parse GLB");
+)
+where
+    S: AsRef<[u8]>,
+{
+    let (gltf, buffers, _) = gltf::import_slice(slice).expect("Failed to parse GLB");
 
     // Extract embedded texture
     let texture = extract_embedded_texture(&gltf, &buffers).expect("Failed to extract texture");
@@ -240,15 +202,7 @@ fn load_model_with_point_cloud(
                     let color = sample_texture(&texture, uv);
                     let position = Point3::new(pos[0], pos[1], pos[2]);
                     let transformed = world_transform.transform_point(&position);
-                    point_cloud.push((
-                        Vec3::new(transformed.x, transformed.y, transformed.z),
-                        Color::linear_rgba(
-                            color[0] as f32 / 255f32,
-                            color[1] as f32 / 255f32,
-                            color[2] as f32 / 255f32,
-                            color[3] as f32 / 255f32,
-                        ),
-                    ));
+                    point_cloud.push((transformed, color));
                     positions.push(transformed);
                 }
 
@@ -274,12 +228,22 @@ fn load_model_with_point_cloud(
     (pcs, trimeshes)
 }
 
-pub fn load_model_trimeshes(path: &str) -> Vec<(Vec<nalgebra::Point3<f32>>, Vec<usize>)> {
-    let mut file = File::open(path).expect("Failed to open GLB file");
-    let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer).expect("Failed to read file");
-
-    let (gltf, buffers, _) = gltf::import_slice(&buffer).expect("Failed to parse GLB");
+/// Load a glb or gltf file and return a point cloud and a list of trimeshes.
+///
+/// ```
+/// let mut file = File::open("path_to_file.glb").expect("Failed to open GLB file");
+/// let mut buffer = Vec::new();
+/// file.read_to_end(&mut buffer).expect("Failed to read file");
+///
+/// let (gltf, buffers, _) = gltf::import_slice(slice).expect("Failed to parse GLB");
+///
+/// let _ = load_model_trimeshes(&buffer);
+/// ```
+pub fn load_model_trimeshes<S>(slice: S) -> Vec<(Vec<nalgebra::Point3<f32>>, Vec<usize>)>
+where
+    S: AsRef<[u8]>,
+{
+    let (gltf, buffers, _) = gltf::import_slice(slice).expect("Failed to parse GLB");
 
     let mut trimeshes = vec![];
 

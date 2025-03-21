@@ -15,6 +15,9 @@ required-features = ["dim3"]
 [features]
 default = ["dim3"]
 dim3 = []
+load_gltf = ["obj-rs", "image"]
+load_obj = ["gltf", "image"]
+load_bevy = ["bevy", "image"]
 
 [dependencies]
 nalgebra = { workspace = true }
@@ -33,53 +36,19 @@ wgrapier3d = "0.2"
 # TODO: make rapier optional?
 rapier3d = "0.23"
 
-[dev-dependencies]
-nalgebra = { version = "0.33", features = ["rand"] }
-futures-test = "0.3"
-serial_test = "3"
-approx = "0.5"
-async-std = { version = "1", features = ["attributes"] }
+# for loaders
+# TODO: slim bevy features
 bevy = { version = "0.15.0", features = [
     "shader_format_glsl",
     "shader_format_spirv",
     "webgpu",
     "jpeg",
-] }
-wgsparkl_testbed3d = { path = "../wgsparkl-testbed3d", features = ["dim3"] }
-obj-rs = { version = "0.7", default-features = false }
-bevy_editor_cam = "*"
-image = "0.25"
-gltf = { version = "1.3", features = ["KHR_materials_pbrSpecularGlossiness"] }
+], optional = true }
+gltf = { version = "1.3", features = [
+    "KHR_materials_pbrSpecularGlossiness",
+], optional = true }
+obj-rs = { version = "0.7", default-features = false, optional = true }
+image = { version = "0.25", optional = true }
 
 [package.metadata.docs.rs]
 cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
-
-[[example]]
-name = "banana3"
-path = "examples/banana3.rs"
-doc-scrape-examples = true
-crate-type = ["lib"]
-
-[[example]]
-name = "elastic_cut3"
-path = "examples/elastic_cut.rs"
-doc-scrape-examples = true
-crate-type = ["lib"]
-
-[[example]]
-name = "heightfield3"
-path = "examples/heightfield3.rs"
-doc-scrape-examples = true
-crate-type = ["lib"]
-
-[[example]]
-name = "sand3"
-path = "examples/sand3.rs"
-doc-scrape-examples = true
-crate-type = ["lib"]
-
-[[example]]
-name = "default_scene"
-path = "examples/libs/default_scene.rs"
-doc-scrape-examples = true
-crate-type = ["lib"]

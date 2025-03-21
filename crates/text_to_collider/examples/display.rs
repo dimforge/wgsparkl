@@ -1,12 +1,6 @@
 use bevy::{input::common_conditions::input_toggle_active, prelude::*};
 use cosmic_text::Color;
-use parry3d::{
-    bounding_volume::BoundingVolume,
-    math::Point,
-    na::{Isometry3, Point2, SVector, UnitQuaternion, Vector2},
-    query::PointQuery,
-    shape::{Ball, Cuboid},
-};
+use parry3d::{na::Vector2, shape::Cuboid};
 use text_to_collider::{get_rects_for, Rect};
 
 fn main() {

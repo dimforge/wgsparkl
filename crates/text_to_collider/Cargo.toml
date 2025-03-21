@@ -15,3 +15,4 @@ parry3d = "*"
 
 [dev-dependencies]
 bevy = "0.15"
+rkyv = "0.8"

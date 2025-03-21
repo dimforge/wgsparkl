@@ -22,10 +22,10 @@ fn main() {
 }
 
 pub fn elastic_cut_demo(
-    mut commands: Commands,
-    device: Res<RenderDevice>,
-    mut app_state: ResMut<AppState>,
-) {
+    device: RenderDevice,
+    app_state: &mut AppState,
+    _callbacks: &mut Callbacks,
+) -> PhysicsContext {
     let mut rapier_data = RapierData::default();
     let device = device.wgpu_device();
 
@@ -48,6 +48,7 @@ pub fn elastic_cut_demo(
                     phase: 1.0,
                     max_stretch: f32::MAX,
                 }),
+                color: None,
             });
         }
     }
@@ -118,9 +119,9 @@ pub fn elastic_cut_demo(
         cell_width,
         60_000,
     );
-    commands.insert_resource(PhysicsContext {
+    PhysicsContext {
         data,
         rapier_data,
         particles,
-    });
+    }
 }

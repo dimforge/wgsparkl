@@ -1,0 +1,24 @@
+[package]
+name = "wgsparkl-examples-2d"
+version = "0.1.0"
+license = "Apache-2.0 OR Custom"
+edition = "2021"
+
+[dependencies]
+nalgebra = { version = "0.33", features = ["rand"] }
+futures-test = "0.3"
+serial_test = "3"
+approx = "0.5"
+async-std = { version = "1", features = ["attributes"] }
+bevy = { version = "0.15.0", features = [
+    "shader_format_glsl",
+    "shader_format_spirv",
+    "webgpu",
+    "jpeg",
+] }
+wgsparkl_testbed2d = { path = "../crates/wgsparkl-testbed2d" }
+wgsparkl2d = { path = "../crates/wgsparkl2d" }
+rapier3d = "0.23"
+
+[lints]
+workspace = true

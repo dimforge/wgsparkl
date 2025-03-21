@@ -2,7 +2,7 @@ use crate::instancing::{InstanceBuffer, InstanceData, InstanceMaterialData};
 use crate::prep_vertex_buffer::{GpuRenderConfig, RenderConfig, RenderMode, WgPrepVertexBuffer};
 use crate::rigid_graphics::{BevyMaterial, EntityWithGraphics, InstancedMaterials};
 use crate::step::TimestampChannel;
-use crate::{AppState, PhysicsContext, RenderContext, RunState, Timestamps};
+use crate::{AppState, Callbacks, PhysicsContext, RenderContext, RunState, Timestamps};
 use bevy::asset::Assets;
 use bevy::color::Color;
 use bevy::hierarchy::DespawnRecursiveExt;
@@ -290,6 +290,7 @@ pub fn setup_graphics(
     );
 }
 
-pub fn setup_app_state(mut app_state: ResMut<AppState>) {
+pub fn setup_app_state(mut app_state: ResMut<AppState>, mut callbacks: ResMut<Callbacks>) {
     app_state.physics_time_seconds = 0.0;
+    callbacks.0.clear();
 }

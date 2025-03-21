@@ -8,10 +8,10 @@ use parry3d::{
     shape::Cuboid,
 };
 
-pub fn get_rects_for(string: &str) -> Vec<Rect> {
-    let width = 512f32;
-    let height = 256f32;
+pub const WIDTH: f32 = 523f32;
+pub const HEIGHT: f32 = 256f32;
 
+pub fn get_rects_for(string: &str) -> Vec<Rect> {
     let mut font_system = FontSystem::new();
     let mut swash_cache = SwashCache::new();
 
@@ -20,7 +20,7 @@ pub fn get_rects_for(string: &str) -> Vec<Rect> {
     let mut editor = editor.borrow_with(&mut font_system);
 
     editor.with_buffer_mut(|buffer| {
-        buffer.set_size(Some(width), Some(height));
+        buffer.set_size(Some(WIDTH), Some(HEIGHT));
         let attrs = Attrs::new();
         let comic_attrs = attrs.family(Family::Name("Comic Neue"));
 
