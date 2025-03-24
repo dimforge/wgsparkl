@@ -18,7 +18,7 @@ bevy = { version = "0.15.0", features = [
 ] }
 wgsparkl_testbed2d = { path = "../crates/wgsparkl-testbed2d" }
 wgsparkl2d = { path = "../crates/wgsparkl2d" }
-rapier3d = "0.23"
+rapier2d = "0.23"
 
 [lints]
 workspace = true
