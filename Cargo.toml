@@ -42,11 +42,12 @@ encase = { git = "https://github.com/sebcrozet/encase.git", rev = "6755c1414c225
 wgcore = { git = "https://github.com/dimforge/wgmath.git", branch = "wgml-chat" }
 wgcore-derive = { git = "https://github.com/dimforge/wgmath.git", branch = "wgml-chat" }
 wgebra = { git = "https://github.com/dimforge/wgmath.git", branch = "wgml-chat" }
-# wgparry2d = { git = "https://github.com/dimforge/wgmath.git", rev = "32b54c802be6040c5f003e7d3def4a33e4730d92" }
 wgparry3d = { git = "https://github.com/dimforge/wgmath.git", branch = "wgml-chat" }
-# wgrapier2d = { git = "https://github.com/dimforge/wgmath.git", rev = "32b54c802be6040c5f003e7d3def4a33e4730d92" }
+wgparry2d = { git = "https://github.com/dimforge/wgmath.git", branch = "wgml-chat" }
 wgrapier3d = { git = "https://github.com/dimforge/wgmath.git", branch = "wgml-chat" }
+wgrapier2d = { git = "https://github.com/dimforge/wgmath.git", branch = "wgml-chat" }
 rapier3d = { git = "https://github.com/vrixyz/rapier.git", branch = "uber_physics_context" }
+rapier2d = { git = "https://github.com/vrixyz/rapier.git", branch = "uber_physics_context" }
 
 [profile.release]
 opt-level = 'z'
