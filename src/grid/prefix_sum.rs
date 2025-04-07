@@ -170,10 +170,10 @@ impl PrefixSumWorkspace {
 #[cfg(test)]
 mod test {
     use super::{PrefixSumWorkspace, WgPrefixSum};
-    use nalgebra::{DMatrix, DVector};
+    use nalgebra::DVector;
     use wgcore::gpu::GpuInstance;
     use wgcore::kernel::KernelInvocationQueue;
-    use wgcore::tensor::{GpuVector, TensorBuilder};
+    use wgcore::tensor::GpuVector;
     use wgcore::Shader;
     use wgpu::BufferUsages;
 
@@ -187,7 +187,7 @@ mod test {
         let mut queue = KernelInvocationQueue::new(gpu.device());
 
         let inputs = vec![
-            DVector::<u32>::from_fn(LEN as usize, |i, _| 1),
+            DVector::<u32>::from_fn(LEN as usize, |_, _| 1),
             DVector::<u32>::from_fn(LEN as usize, |i, _| i as u32),
             DVector::<u32>::new_random(LEN as usize).map(|e| e % 10_000),
         ];

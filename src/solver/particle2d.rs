@@ -6,6 +6,7 @@ use nalgebra::{vector, Matrix2, Point2, Vector2};
 use rapier::geometry::{ColliderSet, Polyline, Segment};
 use wgcore::tensor::GpuVector;
 use wgcore::Shader;
+use wgparry::shape::ShapeBuffers;
 use wgpu::{BufferUsages, Device};
 use wgrapier::dynamics::body::BodyCouplingEntry;
 use wgrapier::dynamics::GpuBodySet;
@@ -65,6 +66,16 @@ pub struct GpuRigidParticles {
 }
 
 impl GpuRigidParticles {
+    pub fn new(device: &Device) -> Self {
+        Self::from_rapier(
+            device,
+            &ColliderSet::default(),
+            &GpuBodySet::new(device, &[], &[], &ShapeBuffers::default()),
+            &[],
+            1.0,
+        )
+    }
+
     pub fn from_rapier(
         device: &Device,
         colliders: &ColliderSet,

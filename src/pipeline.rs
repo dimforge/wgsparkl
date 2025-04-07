@@ -284,12 +284,11 @@ impl MpmPipeline {
 #[cfg(test)]
 #[cfg(feature = "dim3")]
 mod test {
-    use crate::grid::grid::GpuGrid;
-    use crate::grid::prefix_sum::PrefixSumWorkspace;
-    use crate::models::WgLinearElasticity;
+    use crate::models::ElasticCoefficients;
     use crate::pipeline::{MpmData, MpmPipeline};
-    use crate::solver::{GpuParticles, Particle, ParticleMassProps, SimulationParams};
-    use nalgebra::{vector, Vector3};
+    use crate::solver::{Particle, ParticleDynamics, SimulationParams};
+    use nalgebra::vector;
+    use rapier::prelude::{ColliderSet, RigidBodySet};
     use wgcore::gpu::GpuInstance;
     use wgcore::kernel::KernelInvocationQueue;
     use wgpu::Maintain;
@@ -298,7 +297,7 @@ mod test {
     #[serial_test::serial]
     async fn pipeline_queue_step() {
         let gpu = GpuInstance::new().await.unwrap();
-        let pipeline = MpmPipeline::new(gpu.device());
+        let pipeline = MpmPipeline::new(gpu.device()).unwrap();
 
         let cell_width = 1.0;
         let mut cpu_particles = vec![];
@@ -308,9 +307,8 @@ mod test {
                     let position = vector![i as f32, j as f32, k as f32] / cell_width / 2.0;
                     cpu_particles.push(Particle {
                         position,
-                        velocity: Vector3::zeros(),
-                        volume: ParticleMassProps::new(1.0, cell_width / 4.0),
-                        model: LinearElasticity::from_young_modulus(100_000.0, 0.33),
+                        dynamics: ParticleDynamics::with_density(cell_width / 4.0, 1.0),
+                        model: ElasticCoefficients::from_young_modulus(100_000.0, 0.33),
                         plasticity: None,
                         phase: None,
                     });
@@ -322,13 +320,21 @@ mod test {
             gravity: vector![0.0, -9.81, 0.0],
             dt: (1.0 / 60.0) / 10.0,
         };
-        let mut data = MpmData::new(gpu.device(), params, &cpu_particles, cell_width, 100_000);
-        let mut queue = KernelInvocationQueue::new(gpu.device_arc());
-        pipeline.queue_step(&mut data, &mut queue);
+        let mut data = MpmData::new(
+            gpu.device(),
+            params,
+            &cpu_particles,
+            &RigidBodySet::default(),
+            &ColliderSet::default(),
+            cell_width,
+            100_000,
+        );
+        let mut queue = KernelInvocationQueue::new(gpu.device());
+        pipeline.queue_step(&mut data, &mut queue, false);
 
         for _ in 0..3 {
             let mut encoder = gpu.device().create_command_encoder(&Default::default());
-            queue.encode(&mut encoder);
+            queue.encode(&mut encoder, None);
             let t0 = std::time::Instant::now();
             gpu.queue().submit(Some(encoder.finish()));
             gpu.device().poll(Maintain::Wait);

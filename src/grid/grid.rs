@@ -336,21 +336,21 @@ impl GpuGrid {
 mod test {
     use super::{GpuGrid, PrefixSumWorkspace, WgGrid, WgPrefixSum};
     use crate::grid::sort::WgSort;
-    use crate::models::LinearElasticity;
-    use crate::solver::{GpuParticles, Particle, ParticleMassProps};
-    use nalgebra::{vector, DMatrix, DVector, Vector3};
+    use crate::models::ElasticCoefficients;
+    use crate::solver::{GpuParticles, GpuRigidParticles, Particle, ParticleDynamics};
+    use nalgebra::vector;
     use wgcore::gpu::GpuInstance;
     use wgcore::kernel::KernelInvocationQueue;
-    use wgcore::tensor::{GpuVector, TensorBuilder};
-    use wgpu::{BufferUsages, Maintain, MaintainBase};
+    use wgcore::Shader;
+    use wgpu::Maintain;
 
     #[futures_test::test]
     #[serial_test::serial]
     async fn gpu_grid_sort() {
         let gpu = GpuInstance::new().await.unwrap();
-        let prefix_sum_module = WgPrefixSum::new(gpu.device());
-        let grid_module = WgGrid::new(gpu.device());
-        let sort_module = WgSort::new(gpu.device());
+        let prefix_sum_module = WgPrefixSum::from_device(gpu.device()).unwrap();
+        let grid_module = WgGrid::from_device(gpu.device()).unwrap();
+        let sort_module = WgSort::from_device(gpu.device()).unwrap();
 
         let cell_width = 1.0;
         let mut cpu_particles = vec![];
@@ -360,9 +360,10 @@ mod test {
                     let position = vector![i as f32, j as f32, k as f32] / cell_width / 2.0;
                     cpu_particles.push(Particle {
                         position,
-                        velocity: Vector3::zeros(),
-                        volume: ParticleMassProps::new(1.0, cell_width / 4.0),
-                        model: LinearElasticity::from_young_modulus(100_000.0, 0.33),
+                        dynamics: ParticleDynamics::with_density(cell_width / 4.0, 1.0),
+                        model: ElasticCoefficients::from_young_modulus(100_000.0, 0.33),
+                        plasticity: None,
+                        phase: None,
                     });
                 }
             }
@@ -371,13 +372,20 @@ mod test {
         let particles = GpuParticles::from_particles(gpu.device(), &cpu_particles);
         let grid = GpuGrid::with_capacity(gpu.device(), 100_000, cell_width);
         let mut prefix_sum = PrefixSumWorkspace::with_capacity(gpu.device(), 100_000);
-        let mut queue = KernelInvocationQueue::new(gpu.device_arc());
+        let mut queue = KernelInvocationQueue::new(gpu.device());
+        #[cfg(target_os = "macos")]
+        let touch_particle_blocks =
+            crate::grid::sort::TouchParticleBlocks::from_device(gpu.device());
+        let rigid_particles = GpuRigidParticles::new(gpu.device());
 
         grid_module.queue_sort(
             &particles,
+            &rigid_particles,
             &grid,
             &mut prefix_sum,
             &sort_module,
+            #[cfg(target_os = "macos")]
+            &touch_particle_blocks,
             &prefix_sum_module,
             &mut queue,
         );
@@ -385,7 +393,7 @@ mod test {
         // NOTE: run multiple times, the first execution is much slower.
         for _ in 0..3 {
             let mut encoder = gpu.device().create_command_encoder(&Default::default());
-            queue.encode(&mut encoder);
+            queue.encode(&mut encoder, None);
             let t0 = std::time::Instant::now();
             gpu.queue().submit(Some(encoder.finish()));
             gpu.device().poll(Maintain::Wait);
