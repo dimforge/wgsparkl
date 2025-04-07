@@ -26,13 +26,13 @@ rust.unexpected_cfgs = { level = "warn", check-cfg = [
 parry2d = { git = "https://github.com/dimforge/parry.git", rev = "407fb449504dde7ba0a3d80a8de7e37ac991a77a" }
 parry3d = { git = "https://github.com/dimforge/parry.git", rev = "407fb449504dde7ba0a3d80a8de7e37ac991a77a" }
 encase = { git = "https://github.com/sebcrozet/encase.git", rev = "6755c1414c225cbeac9fde1ff9394b70d3b05404" }
-wgcore = { git = "https://github.com/dimforge/wgmath.git", branch = "wgml-chat" }
-wgcore-derive = { git = "https://github.com/dimforge/wgmath.git", branch = "wgml-chat" }
-wgebra = { git = "https://github.com/dimforge/wgmath.git", branch = "wgml-chat" }
-wgparry3d = { git = "https://github.com/dimforge/wgmath.git", branch = "wgml-chat" }
-wgparry2d = { git = "https://github.com/dimforge/wgmath.git", branch = "wgml-chat" }
-wgrapier3d = { git = "https://github.com/dimforge/wgmath.git", branch = "wgml-chat" }
-wgrapier2d = { git = "https://github.com/dimforge/wgmath.git", branch = "wgml-chat" }
+wgcore = { git = "https://github.com/dimforge/wgmath.git", rev = "6d17942bd841efdfcc696d8455b22be3a8ddfe8d" }
+wgcore-derive = { git = "https://github.com/dimforge/wgmath.git", rev = "6d17942bd841efdfcc696d8455b22be3a8ddfe8d" }
+wgebra = { git = "https://github.com/dimforge/wgmath.git", rev = "6d17942bd841efdfcc696d8455b22be3a8ddfe8d" }
+wgparry3d = { git = "https://github.com/dimforge/wgmath.git", rev = "6d17942bd841efdfcc696d8455b22be3a8ddfe8d" }
+wgparry2d = { git = "https://github.com/dimforge/wgmath.git", rev = "6d17942bd841efdfcc696d8455b22be3a8ddfe8d" }
+wgrapier3d = { git = "https://github.com/dimforge/wgmath.git", rev = "6d17942bd841efdfcc696d8455b22be3a8ddfe8d" }
+wgrapier2d = { git = "https://github.com/dimforge/wgmath.git", rev = "6d17942bd841efdfcc696d8455b22be3a8ddfe8d" }
 rapier3d = { git = "https://github.com/vrixyz/rapier.git", branch = "uber_physics_context" }
 
 [profile.release]
