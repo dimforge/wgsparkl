@@ -1,12 +1,11 @@
-use crate::dim_shader_defs;
 use crate::grid::prefix_sum::{PrefixSumWorkspace, WgPrefixSum};
 use crate::grid::sort::WgSort;
-use crate::solver::{GpuParticles, WgParams};
-use naga_oil::compose::NagaModuleDescriptor;
+use crate::solver::{GpuParticles, GpuRigidParticles, WgParams};
+use crate::{dim_shader_defs, substitute_aliases};
 use std::sync::Arc;
 use wgcore::kernel::{KernelInvocationBuilder, KernelInvocationQueue};
 use wgcore::tensor::{GpuScalar, GpuVector};
-use wgcore::{utils, Shader};
+use wgcore::Shader;
 use wgpu::util::DispatchIndirectArgs;
 use wgpu::{Buffer, BufferAddress, BufferDescriptor, BufferUsages, ComputePipeline, Device};
 
@@ -14,7 +13,12 @@ use wgpu::{Buffer, BufferAddress, BufferDescriptor, BufferUsages, ComputePipelin
 use crate::grid::sort::TouchParticleBlocks;
 
 #[derive(Shader)]
-#[shader(derive(WgParams), src = "grid.wgsl", shader_defs = "dim_shader_defs")]
+#[shader(
+    derive(WgParams),
+    src = "grid.wgsl",
+    shader_defs = "dim_shader_defs",
+    src_fn = "substitute_aliases"
+)]
 pub struct WgGrid {
     reset_hmap: ComputePipeline,
     reset: ComputePipeline,
@@ -26,6 +30,7 @@ impl WgGrid {
     pub fn queue_sort<'a>(
         &'a self,
         particles: &GpuParticles,
+        rigid_particles: &GpuRigidParticles,
         grid: &GpuGrid,
         prefix_sum: &mut PrefixSumWorkspace,
         sort_module: &'a WgSort,
@@ -50,11 +55,11 @@ impl WgGrid {
                 .queue(grid.cpu_meta.hmap_capacity.div_ceil(GRID_WORKGROUP_SIZE));
 
             #[cfg(not(target_os = "macos"))]
-            let touch_particle_blocks = &sort_module.touch_particle_blocks;
+            let touch_particle_blocks_pipeline = &sort_module.touch_particle_blocks;
             #[cfg(target_os = "macos")]
-            let touch_particle_blocks = &touch_particle_blocks.touch_particle_blocks;
+            let touch_particle_blocks_pipeline = &touch_particle_blocks.touch_particle_blocks;
 
-            KernelInvocationBuilder::new(queue, touch_particle_blocks)
+            KernelInvocationBuilder::new(queue, touch_particle_blocks_pipeline)
                 .bind_at(
                     0,
                     [
@@ -66,6 +71,47 @@ impl WgGrid {
                 )
                 .bind(1, [particles.positions.buffer()])
                 .queue((particles.len() as u32).div_ceil(GRID_WORKGROUP_SIZE));
+
+            // Ensure blocks exist wherever we have rigid particles that might affect
+            // other blocks. This is done in two passes:
+            // 1. Mark all rigid particles that need to ensure it’s associated block exists
+            // 2. Touch the blocks with marked rigid particles.
+            KernelInvocationBuilder::new(queue, &sort_module.mark_rigid_particles_needing_block)
+                .bind_at(
+                    0,
+                    [(grid.meta.buffer(), 0), (grid.hmap_entries.buffer(), 1)],
+                )
+                .bind_at(
+                    1,
+                    [
+                        (rigid_particles.sample_points.buffer(), 0),
+                        (rigid_particles.rigid_particle_needs_block.buffer(), 6),
+                    ],
+                )
+                .queue((rigid_particles.len() as u32).div_ceil(GRID_WORKGROUP_SIZE));
+
+            #[cfg(not(target_os = "macos"))]
+            let touch_rigid_particle_blocks = &sort_module.touch_rigid_particle_blocks;
+            #[cfg(target_os = "macos")]
+            let touch_rigid_particle_blocks = &touch_particle_blocks.touch_rigid_particle_blocks;
+            KernelInvocationBuilder::new(queue, touch_rigid_particle_blocks)
+                .bind_at(
+                    0,
+                    [
+                        (grid.meta.buffer(), 0),
+                        (grid.hmap_entries.buffer(), 1),
+                        (grid.active_blocks.buffer(), 2),
+                        (grid.debug.buffer(), 8),
+                    ],
+                )
+                .bind_at(
+                    1,
+                    [
+                        (rigid_particles.sample_points.buffer(), 0),
+                        (rigid_particles.rigid_particle_needs_block.buffer(), 6),
+                    ],
+                )
+                .queue((rigid_particles.len() as u32).div_ceil(GRID_WORKGROUP_SIZE));
 
             // TODO: handle grid buffer resizing
             sparse_grid_has_the_correct_size = true;
@@ -84,7 +130,7 @@ impl WgGrid {
             .bind_at(
                 0,
                 [
-                    (&grid.meta.buffer(), 0),
+                    (grid.meta.buffer(), 0),
                     (&*grid.indirect_n_blocks_groups, 5),
                     (&*grid.indirect_n_g2p_p2g_groups, 7),
                 ],
@@ -133,6 +179,7 @@ impl WgGrid {
                     (grid.meta.buffer(), 0),
                     (grid.nodes.buffer(), 3),
                     (grid.nodes_linked_lists.buffer(), 6),
+                    (grid.nodes_rigid_linked_lists.buffer(), 10),
                 ],
             )
             .queue_indirect(n_block_groups.clone());
@@ -168,10 +215,11 @@ pub struct GpuGridMetadata {
     capacity: u32,
 }
 
-#[derive(bytemuck::Pod, bytemuck::Zeroable, Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, encase::ShaderType)]
 #[repr(C)]
 pub struct GpuGridNode {
     momentum_velocity_mass: nalgebra::Vector4<f32>,
+    cdf: GpuGridNodeCdf,
 }
 
 #[derive(bytemuck::Pod, bytemuck::Zeroable, Copy, Clone, PartialEq)]
@@ -207,6 +255,14 @@ pub struct GpuActiveBlockHeader {
     num_particles: u32,
 }
 
+#[derive(Copy, Clone, PartialEq, Default, Debug, encase::ShaderType)]
+#[repr(C)]
+pub struct GpuGridNodeCdf {
+    pub distance: f32,
+    pub affinities: u32,
+    pub closest_id: u32,
+}
+
 pub struct GpuGrid {
     pub cpu_meta: GpuGridMetadata,
     pub meta: GpuScalar<GpuGridMetadata>,
@@ -215,6 +271,7 @@ pub struct GpuGrid {
     pub active_blocks: GpuVector<GpuActiveBlockHeader>,
     pub scan_values: GpuVector<u32>,
     pub nodes_linked_lists: GpuVector<[u32; 2]>,
+    pub nodes_rigid_linked_lists: GpuVector<[u32; 2]>,
     pub indirect_n_blocks_groups: Arc<Buffer>,
     pub indirect_n_g2p_p2g_groups: Arc<Buffer>,
     pub debug: GpuVector<u32>,
@@ -236,8 +293,11 @@ impl GpuGrid {
             BufferUsages::STORAGE | BufferUsages::COPY_SRC,
         );
         let hmap_entries = GpuVector::uninit(device, capacity, BufferUsages::STORAGE);
-        let nodes = GpuVector::uninit(device, capacity * NODES_PER_BLOCK, BufferUsages::STORAGE);
+        let nodes =
+            GpuVector::uninit_encased(device, capacity * NODES_PER_BLOCK, BufferUsages::STORAGE);
         let nodes_linked_lists =
+            GpuVector::uninit(device, capacity * NODES_PER_BLOCK, BufferUsages::STORAGE);
+        let nodes_rigid_linked_lists =
             GpuVector::uninit(device, capacity * NODES_PER_BLOCK, BufferUsages::STORAGE);
         let active_blocks = GpuVector::uninit(device, capacity, BufferUsages::STORAGE);
         let scan_values = GpuVector::uninit(device, capacity, BufferUsages::STORAGE);
@@ -253,7 +313,7 @@ impl GpuGrid {
             usage: BufferUsages::STORAGE | BufferUsages::INDIRECT,
             mapped_at_creation: false,
         }));
-        let debug = GpuVector::init(device, &[0, 0], BufferUsages::STORAGE);
+        let debug = GpuVector::init(device, [0, 0], BufferUsages::STORAGE);
 
         Self {
             cpu_meta,
@@ -265,6 +325,7 @@ impl GpuGrid {
             indirect_n_blocks_groups,
             indirect_n_g2p_p2g_groups,
             nodes_linked_lists,
+            nodes_rigid_linked_lists,
             debug,
         }
     }
@@ -275,21 +336,21 @@ impl GpuGrid {
 mod test {
     use super::{GpuGrid, PrefixSumWorkspace, WgGrid, WgPrefixSum};
     use crate::grid::sort::WgSort;
-    use crate::models::LinearElasticity;
-    use crate::solver::{GpuParticles, Particle, ParticleMassProps};
-    use nalgebra::{vector, DMatrix, DVector, Vector3};
+    use crate::models::ElasticCoefficients;
+    use crate::solver::{GpuParticles, GpuRigidParticles, Particle, ParticleDynamics};
+    use nalgebra::vector;
     use wgcore::gpu::GpuInstance;
     use wgcore::kernel::KernelInvocationQueue;
-    use wgcore::tensor::{GpuVector, TensorBuilder};
-    use wgpu::{BufferUsages, Maintain, MaintainBase};
+    use wgcore::Shader;
+    use wgpu::Maintain;
 
     #[futures_test::test]
     #[serial_test::serial]
     async fn gpu_grid_sort() {
         let gpu = GpuInstance::new().await.unwrap();
-        let prefix_sum_module = WgPrefixSum::new(gpu.device());
-        let grid_module = WgGrid::new(gpu.device());
-        let sort_module = WgSort::new(gpu.device());
+        let prefix_sum_module = WgPrefixSum::from_device(gpu.device()).unwrap();
+        let grid_module = WgGrid::from_device(gpu.device()).unwrap();
+        let sort_module = WgSort::from_device(gpu.device()).unwrap();
 
         let cell_width = 1.0;
         let mut cpu_particles = vec![];
@@ -299,9 +360,10 @@ mod test {
                     let position = vector![i as f32, j as f32, k as f32] / cell_width / 2.0;
                     cpu_particles.push(Particle {
                         position,
-                        velocity: Vector3::zeros(),
-                        volume: ParticleMassProps::new(1.0, cell_width / 4.0),
-                        model: LinearElasticity::from_young_modulus(100_000.0, 0.33),
+                        dynamics: ParticleDynamics::with_density(cell_width / 4.0, 1.0),
+                        model: ElasticCoefficients::from_young_modulus(100_000.0, 0.33),
+                        plasticity: None,
+                        phase: None,
                     });
                 }
             }
@@ -310,13 +372,20 @@ mod test {
         let particles = GpuParticles::from_particles(gpu.device(), &cpu_particles);
         let grid = GpuGrid::with_capacity(gpu.device(), 100_000, cell_width);
         let mut prefix_sum = PrefixSumWorkspace::with_capacity(gpu.device(), 100_000);
-        let mut queue = KernelInvocationQueue::new(gpu.device_arc());
+        let mut queue = KernelInvocationQueue::new(gpu.device());
+        #[cfg(target_os = "macos")]
+        let touch_particle_blocks =
+            crate::grid::sort::TouchParticleBlocks::from_device(gpu.device());
+        let rigid_particles = GpuRigidParticles::new(gpu.device());
 
         grid_module.queue_sort(
             &particles,
+            &rigid_particles,
             &grid,
             &mut prefix_sum,
             &sort_module,
+            #[cfg(target_os = "macos")]
+            &touch_particle_blocks,
             &prefix_sum_module,
             &mut queue,
         );
@@ -324,7 +393,7 @@ mod test {
         // NOTE: run multiple times, the first execution is much slower.
         for _ in 0..3 {
             let mut encoder = gpu.device().create_command_encoder(&Default::default());
-            queue.encode(&mut encoder);
+            queue.encode(&mut encoder, None);
             let t0 = std::time::Instant::now();
             gpu.queue().submit(Some(encoder.finish()));
             gpu.device().poll(Maintain::Wait);

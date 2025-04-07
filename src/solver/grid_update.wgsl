@@ -1,7 +1,6 @@
 #define_import_path wgsparkl::solver::grid_update
 
 #import wgsparkl::grid::grid as Grid;
-#import wgsparkl::collision::collide as Collide;
 
 #if DIM == 2
 const WORKGROUP_SIZE_X: u32 = 8;
@@ -14,7 +13,7 @@ const WORKGROUP_SIZE_Z: u32 = 4;
 #endif
 
 // NOTE: the only reason why this is its own kernel is because this makes us
-//       exceed the 10 storage bindings on web paltforms (because of the
+//       exceed the 10 storage bindings on web platforms (because of the
 //       collision-detection buffers).
 //       If we ever end up moving the collision-detection to particles only,
 //       we should consider doing the cell update in the p2g kernel.
@@ -50,7 +49,6 @@ fn update_single_cell(cell_pos: vec2<f32>, momentum_velocity_mass: vec3<f32>) ->
     // Clamp the velocity so it doesn’t exceed 1 grid cell in one step.
     let vel_limit = vec2(Grid::grid.cell_width / Grid::sim_params.dt);
     velocity = clamp(velocity, -vel_limit, vel_limit);
-    velocity = Collide::collide(cell_pos, velocity);
     return vec3(velocity, mass);
 }
 #else
@@ -62,7 +60,6 @@ fn update_single_cell(cell_pos: vec3<f32>, momentum_velocity_mass: vec4<f32>) ->
     // Clamp the velocity so it doesn’t exceed 1 grid cell in one step.
     let vel_limit = vec3(Grid::grid.cell_width / Grid::sim_params.dt);
     velocity = clamp(velocity, -vel_limit, vel_limit);
-    velocity = Collide::collide(cell_pos, velocity);
     return vec4(velocity, mass);
 }
 #endif

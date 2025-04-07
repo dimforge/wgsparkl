@@ -1,3 +1,6 @@
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::module_inception)]
+
 #[cfg(feature = "dim2")]
 pub extern crate wgsparkl2d as wgsparkl;
 #[cfg(feature = "dim3")]
@@ -7,6 +10,7 @@ pub extern crate wgsparkl3d as wgsparkl;
 pub use instancing2d as instancing;
 #[cfg(feature = "dim3")]
 pub use instancing3d as instancing;
+use std::collections::HashMap;
 
 #[cfg(feature = "dim2")]
 pub mod instancing2d;
@@ -15,19 +19,28 @@ pub mod instancing3d;
 
 mod hot_reload;
 pub mod prep_vertex_buffer;
+mod rigid_graphics;
 pub mod startup;
 pub mod step;
 pub mod ui;
 
 use bevy::asset::load_internal_asset;
 use bevy::ecs::system::SystemId;
+use bevy::pbr::wireframe::WireframePlugin;
 use bevy::prelude::*;
-// use bevy_editor_cam::prelude::DefaultEditorCamPlugins;
+use bevy_editor_cam::prelude::DefaultEditorCamPlugins;
 // use bevy_wasm_window_resize::WindowResizePlugin;
+use crate::rigid_graphics::{EntityWithGraphics, InstancedMaterials};
 use instancing::INSTANCING_SHADER_HANDLE;
 use prep_vertex_buffer::{GpuRenderConfig, RenderConfig, WgPrepVertexBuffer};
 use wgcore::hot_reloading::HotReloadState;
 use wgcore::timestamps::GpuTimestamps;
+use wgsparkl::rapier::dynamics::{CCDSolver, IntegrationParameters, RigidBodySet};
+use wgsparkl::rapier::geometry::{ColliderSet, NarrowPhase};
+use wgsparkl::rapier::prelude::{
+    DefaultBroadPhase, ImpulseJointSet, IslandManager, MultibodyJointSet, PhysicsPipeline,
+    ShapeType,
+};
 use wgsparkl::{
     pipeline::{MpmData, MpmPipeline},
     solver::Particle,
@@ -36,10 +49,10 @@ use wgsparkl::{
 pub fn init_testbed(app: &mut App) {
     app.add_plugins(DefaultPlugins)
         // .add_plugins(WindowResizePlugin)
-        // .add_plugins((
-        //     bevy_mod_picking::DefaultPickingPlugins,
-        //     DefaultEditorCamPlugins,
-        // ))
+        .add_plugins((
+            // bevy_mod_picking::DefaultPickingPlugins,
+            DefaultEditorCamPlugins,
+        ))
         .add_plugins(instancing::ParticlesMaterialPlugin)
         .add_plugins(bevy_egui::EguiPlugin)
         .init_resource::<SceneInits>()
@@ -49,9 +62,14 @@ pub fn init_testbed(app: &mut App) {
             (
                 ui::update_ui,
                 step::step_simulation,
+                rigid_graphics::update_rigid_graphics,
                 hot_reload::handle_hot_reloading,
-            ),
+            )
+                .chain(),
         );
+
+    #[cfg(not(target_arch = "wasm32"))]
+    app.add_plugins(WireframePlugin);
 
     #[cfg(feature = "dim2")]
     load_internal_asset!(
@@ -81,18 +99,45 @@ pub struct AppState {
     pub restarting: bool,
     pub selected_scene: usize,
     pub hot_reload: HotReloadState,
+    pub show_rigid_particles: bool,
+}
+
+#[derive(Default)]
+pub struct RapierData {
+    pub bodies: RigidBodySet,
+    pub colliders: ColliderSet,
+    pub impulse_joints: ImpulseJointSet,
+    pub multibody_joints: MultibodyJointSet,
+    pub params: IntegrationParameters,
+    pub physics_pipeline: PhysicsPipeline,
+    pub narrow_phase: NarrowPhase,
+    pub broad_phase: DefaultBroadPhase,
+    pub ccd_solver: CCDSolver,
+    pub islands: IslandManager,
 }
 
 #[derive(Resource)]
 pub struct PhysicsContext {
     pub data: MpmData,
+    pub rapier_data: RapierData,
     pub particles: Vec<Particle>,
+}
+
+#[derive(Resource, Default)]
+pub struct RenderContext {
+    pub instanced_materials: InstancedMaterials,
+    pub prefab_meshes: HashMap<ShapeType, Handle<Mesh>>,
+    pub rigid_entities: Vec<EntityWithGraphics>,
 }
 
 #[derive(Resource, Default)]
 pub struct Timestamps {
     pub timestamps: Option<GpuTimestamps>,
+    pub update_rigid_particles: f64,
     pub grid_sort: f64,
+    pub grid_update_cdf: f64,
+    pub p2g_cdf: f64,
+    pub g2p_cdf: f64,
     pub p2g: f64,
     pub grid_update: f64,
     pub g2p: f64,
@@ -102,7 +147,11 @@ pub struct Timestamps {
 
 impl Timestamps {
     pub fn total_time(&self) -> f64 {
-        self.grid_sort
+        self.update_rigid_particles
+            + self.grid_sort
+            + self.grid_update_cdf
+            + self.p2g_cdf
+            + self.g2p_cdf
             + self.p2g
             + self.grid_update
             + self.g2p

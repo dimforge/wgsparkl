@@ -4,24 +4,24 @@
 #import wgsparkl::solver::particle as Particle;
 #import wgsparkl::grid::kernel as Kernel;
 #import wgsparkl::grid::grid as Grid;
+#import wgsparkl::solver::impulse as Impulse;
+#import wgrapier::body as Body;
+
 
 @group(1) @binding(0)
 var<storage, read> particles_pos: array<Particle::Position>;
 @group(1) @binding(1)
-var<storage, read> particles_vel: array<Particle::Velocity>;
+var<storage, read> particles_dyn: array<Particle::Dynamics>;
 @group(1) @binding(2)
-var<storage, read> particles_vol: array<Particle::Volume>;
-#if DIM == 2
-@group(1) @binding(3)
-var<storage, read> particles_affine: array<mat2x2<f32>>;
-#else
-@group(1) @binding(3)
-var<storage, read> particles_affine: array<mat3x3<f32>>;
-#endif
-@group(1) @binding(4)
 var<storage, read> nodes_linked_lists: array<Grid::NodeLinkedList>;
-@group(1) @binding(5)
+@group(1) @binding(3)
 var<storage, read> particle_node_linked_lists: array<u32>;
+
+@group(2) @binding(0)
+var<storage, read> body_vels: array<Body::Velocity>;
+@group(2) @binding(1)
+var<storage, read_write> body_impulses: array<Impulse::IntegerImpulseAtomic>;
+
 
 
 #if DIM == 2
@@ -41,6 +41,8 @@ var<workgroup> shared_affine: array<mat3x3<f32>, NUM_SHARED_CELLS>;
 #endif
 var<workgroup> shared_nodes: array<SharedNode, NUM_SHARED_CELLS>;
 var<workgroup> shared_pos: array<Particle::Position, NUM_SHARED_CELLS>;
+var<workgroup> shared_affinities: array<u32, NUM_SHARED_CELLS>;
+var<workgroup> shared_normals: array<Vector, NUM_SHARED_CELLS>;
 // TODO: is computing themax with an atomic faster than doing a reduction?
 var<workgroup> max_linked_list_length: atomic<u32>;
 // NOTE: workgroupUniformLoad doesn’t work on atomics, so we need that additional variable
@@ -50,6 +52,18 @@ var<workgroup> max_linked_list_length_uniform: u32;
 struct SharedNode {
     particle_id: u32,
     global_id: u32,
+}
+
+struct P2GStepResult {
+#if DIM == 2
+    new_momentum_velocity_mass: vec3<f32>,
+    impulse: vec2<f32>,
+    ang_impulse: f32,
+#else
+    new_momentum_velocity_mass: vec4<f32>,
+    impulse: vec3<f32>,
+    ang_impulse: vec3<f32>,
+#endif
 }
 
 @compute @workgroup_size(WORKGROUP_SIZE_X, WORKGROUP_SIZE_Y, WORKGROUP_SIZE_Z)
@@ -86,14 +100,23 @@ fn p2g(
     let packed_cell_index_in_block = flatten_shared_index(tid.x + 4u, tid.y + 4u, tid.z + 4u);
 #endif
 
+    // TODO: we store the global_id in shared memory for convenience. Should we just recompute it instead?
+    let global_id = shared_nodes[packed_cell_index_in_block].global_id;
+    let node_affinities = Grid::nodes[global_id].cdf.affinities;
+    let collider_id = Grid::nodes[global_id].cdf.closest_id;
+    var total_result = P2GStepResult();
+
     // NOTE: read the linked list with workgroupUniformLoad so that is is considered
-    //       part of a uniform execution flow (for the barriers to be valids).
+    //       part of a uniform execution flow (for the barriers to be valid).
     let len = workgroupUniformLoad(&max_linked_list_length_uniform);
     for (var i = 0u; i < len; i += 1u) {
         workgroupBarrier();
         fetch_next_particle(tid);
         workgroupBarrier();
-        new_momentum_velocity_mass += p2g_step(packed_cell_index_in_block, Grid::grid.cell_width);
+        let partial_result = p2g_step(packed_cell_index_in_block, Grid::grid.cell_width, node_affinities, collider_id);
+        total_result.new_momentum_velocity_mass += partial_result.new_momentum_velocity_mass;
+        total_result.impulse += partial_result.impulse;
+        total_result.ang_impulse += partial_result.ang_impulse;
     }
 
     // Grid update.
@@ -110,16 +133,29 @@ fn p2g(
 //       we should consider doing the cell update in the p2g kernel.
 
     // Write the node state to global memory.
-    // TODO: we store the global_id in shared memory for convenience. Should we just recompute it instead?
-    let global_id = shared_nodes[packed_cell_index_in_block].global_id;
-    Grid::nodes[global_id].momentum_velocity_mass = new_momentum_velocity_mass;
+    Grid::nodes[global_id].momentum_velocity_mass = total_result.new_momentum_velocity_mass;
+    // Apply the impulse to the closest body.
+    // PERF: we should probably run a reduction here to get per-collider accumulated impulses
+    //       before adding to global memory. Because it is very likely that every single thread
+    //       here targets the same body.
+
+    if collider_id != Grid::NONE {
+#if DIM == 2
+        atomicAdd(&body_impulses[collider_id].linear_x, Impulse::flt2int(total_result.impulse.x));
+        atomicAdd(&body_impulses[collider_id].linear_y, Impulse::flt2int(total_result.impulse.y));
+        atomicAdd(&body_impulses[collider_id].angular, Impulse::flt2int(total_result.ang_impulse));
+#else
+        atomicAdd(&body_impulses[collider_id].linear_x, Impulse::flt2int(total_result.impulse.x));
+        atomicAdd(&body_impulses[collider_id].linear_y, Impulse::flt2int(total_result.impulse.y));
+        atomicAdd(&body_impulses[collider_id].linear_z, Impulse::flt2int(total_result.impulse.z));
+        atomicAdd(&body_impulses[collider_id].angular_x, Impulse::flt2int(total_result.ang_impulse.x));
+        atomicAdd(&body_impulses[collider_id].angular_y, Impulse::flt2int(total_result.ang_impulse.y));
+        atomicAdd(&body_impulses[collider_id].angular_z, Impulse::flt2int(total_result.ang_impulse.z));
+#endif
+    }
 }
 
-#if DIM == 2
-fn p2g_step(packed_cell_index_in_block: u32, cell_width: f32) -> vec3<f32> {
-#else
-fn p2g_step(packed_cell_index_in_block: u32, cell_width: f32) -> vec4<f32> {
-#endif
+fn p2g_step(packed_cell_index_in_block: u32, cell_width: f32, node_affinity: u32, collider_id: u32) -> P2GStepResult {
     // NOTE: having these into a var is needed so we can index [i] them.
     //       Does this have any impact on performances?
     var NBH_SHIFTS = Kernel::NBH_SHIFTS;
@@ -133,16 +169,12 @@ fn p2g_step(packed_cell_index_in_block: u32, cell_width: f32) -> vec4<f32> {
     let bottommost_contributing_node = flatten_shared_shift(2u, 2u, 2u);
     var new_momentum_velocity_mass = vec4(0.0);
 #endif
+    var impulse = Vector(0.0);
+    var ang_impulse = AngVector(0.0);
 
     for (var i = 0u; i < Kernel::NBH_LEN; i += 1u) {
         let packed_shift = NBH_SHIFTS_SHARED[i];
         let nbh_shared_index = packed_cell_index_in_block - bottommost_contributing_node + packed_shift;
-
-#if DIM == 2
-        let shift = vec2(2u, 2) - NBH_SHIFTS[i];
-#else
-        let shift = vec3(2u, 2, 2) - NBH_SHIFTS[i];
-#endif
         let particle_pos = shared_pos[nbh_shared_index];
         let particle_vel_mass = shared_vel_mass[nbh_shared_index];
         let particle_affine = shared_affine[nbh_shared_index];
@@ -151,19 +183,56 @@ fn p2g_step(packed_cell_index_in_block: u32, cell_width: f32) -> vec4<f32> {
         let w = Kernel::precompute_weights(ref_elt_pos_minus_particle_pos, cell_width);
 
 #if DIM == 2
-        let momentum = particle_vel_mass.xy * particle_vel_mass.z;
+        let particle_vel = particle_vel_mass.xy;
+        let particle_mass = particle_vel_mass.z;
+        let shift = vec2(2u, 2) - NBH_SHIFTS[i];
+        let momentum = particle_vel * particle_mass;
         let dpt = ref_elt_pos_minus_particle_pos + vec2<f32>(shift) * cell_width; // cell_pos - particle_pos
         let weight = w.x[shift.x] * w.y[shift.y];
-        new_momentum_velocity_mass += vec3(particle_affine * dpt + momentum, particle_vel_mass.z) * weight;
 #else
-        let momentum = particle_vel_mass.xyz * particle_vel_mass.w;
+        let particle_vel = particle_vel_mass.xyz;
+        let particle_mass = particle_vel_mass.w;
+        let shift = vec3(2u, 2, 2) - NBH_SHIFTS[i];
+        let momentum = particle_vel * particle_mass;
         let dpt = ref_elt_pos_minus_particle_pos + vec3<f32>(shift) * cell_width; // cell_pos - particle_pos
         let weight = w.x[shift.x] * w.y[shift.y] * w.z[shift.z];
-        new_momentum_velocity_mass += vec4(particle_affine * dpt + momentum, particle_vel_mass.w) * weight;
 #endif
+
+        let particle_affinity = shared_affinities[nbh_shared_index];
+        if !Grid::affinities_are_compatible(node_affinity, particle_affinity) {
+            if collider_id != Grid::NONE {
+                let particle_normal = shared_normals[nbh_shared_index];
+                let body_vel = body_vels[collider_id];
+                let body_com = body_impulses[collider_id].com;
+                let cell_center = dpt + particle_pos.pt;
+                let body_pt_vel =  Body::velocity_at_point(body_com, body_vel, cell_center);
+                let particle_ghost_vel = body_pt_vel + Grid::project_velocity(particle_vel - body_pt_vel, particle_normal);
+                let delta_impulse = (particle_vel - particle_ghost_vel) * (weight * particle_mass);
+
+                // TODO: we could do the ang impulse calcs only once after all the `p2g_step` executions.
+                let lever_arm = body_com - cell_center;
+
+    #if DIM == 2
+                let delta_ang_impulse = dot(delta_impulse, vec2(lever_arm.y, -lever_arm.x));
+    #else
+                let delta_ang_impulse = cross(delta_impulse, lever_arm);
+    #endif
+
+                ang_impulse += delta_ang_impulse;
+                impulse += delta_impulse;
+
+                continue;
+            }
+        } else {
+#if DIM == 2
+            new_momentum_velocity_mass += vec3(particle_affine * dpt + momentum, particle_mass) * weight;
+#else
+            new_momentum_velocity_mass += vec4(particle_affine * dpt + momentum, particle_mass) * weight;
+#endif
+        }
     }
 
-    return new_momentum_velocity_mass;
+    return P2GStepResult(new_momentum_velocity_mass, impulse, ang_impulse);
 }
 
 #if DIM == 2
@@ -292,13 +361,15 @@ fn fetch_next_particle(tid: vec3<u32>) {
                 let curr_particle_id = (*shared_node).particle_id;
 
                 if curr_particle_id != Grid::NONE {
+                    shared_affinities[shared_flat_index] = particles_dyn[curr_particle_id].cdf.affinity;
+                    shared_normals[shared_flat_index] = particles_dyn[curr_particle_id].cdf.normal;
                     shared_pos[shared_flat_index] = particles_pos[curr_particle_id];
-                    shared_affine[shared_flat_index] = particles_affine[curr_particle_id];
+                    shared_affine[shared_flat_index] = particles_dyn[curr_particle_id].affine;
 
 #if DIM == 2
-                    shared_vel_mass[shared_flat_index] = vec3(particles_vel[curr_particle_id].v, Particle::mass(particles_vol[curr_particle_id]));
+                    shared_vel_mass[shared_flat_index] = vec3(particles_dyn[curr_particle_id].velocity, particles_dyn[curr_particle_id].mass);
 #else
-                    shared_vel_mass[shared_flat_index] = vec4(particles_vel[curr_particle_id].v, Particle::mass(particles_vol[curr_particle_id]));
+                    shared_vel_mass[shared_flat_index] = vec4(particles_dyn[curr_particle_id].velocity, particles_dyn[curr_particle_id].mass);
 #endif
 
                     let next_particle_id = particle_node_linked_lists[curr_particle_id];
@@ -307,6 +378,8 @@ fn fetch_next_particle(tid: vec3<u32>) {
                     // TODO: would it be worth skipping writing zeros if we already
                     //       did it at the previous step? (if we already reached the end
                     //       of the particle linked list)
+                    shared_affinities[shared_flat_index] = 0u;
+                    shared_normals[shared_flat_index] = Vector(0.0);
 #if DIM == 2
                     shared_pos[shared_flat_index].pt = vec2(0.0);
                     shared_affine[shared_flat_index] = mat2x2(vec2(0.0), vec2(0.0));

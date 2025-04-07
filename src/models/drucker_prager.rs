@@ -6,12 +6,12 @@ use wgebra::{WgSvd2, WgSvd3};
 #[derive(bytemuck::Pod, bytemuck::Zeroable, Copy, Clone, PartialEq, Debug)]
 #[repr(C)]
 pub struct DruckerPrager {
-    h0: f32,
-    h1: f32,
-    h2: f32,
-    h3: f32,
-    lambda: f32,
-    mu: f32,
+    pub h0: f32,
+    pub h1: f32,
+    pub h2: f32,
+    pub h3: f32,
+    pub lambda: f32,
+    pub mu: f32,
 }
 
 impl DruckerPrager {
@@ -59,4 +59,4 @@ impl Default for DruckerPragerPlasticState {
 )]
 pub struct WgDruckerPrager;
 
-wgcore::test_shader_compilation!(WgDruckerPrager);
+wgcore::test_shader_compilation!(WgDruckerPrager, wgcore, crate::dim_shader_defs());

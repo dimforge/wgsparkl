@@ -10,4 +10,4 @@ use wgebra::{WgSvd2, WgSvd3};
 )]
 pub struct WgLinearElasticity;
 
-wgcore::test_shader_compilation!(WgLinearElasticity);
+wgcore::test_shader_compilation!(WgLinearElasticity, wgcore, crate::dim_shader_defs());

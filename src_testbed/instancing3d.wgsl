@@ -26,12 +26,14 @@ fn vertex(vertex: Vertex) -> VertexOutput {
     let deformation = mat3x3(vertex.def_x, vertex.def_y, vertex.def_z);
     let position = deformation * vertex.position + vertex.pos;
     var out: VertexOutput;
-    // NOTE: Passing 0 as the instance_index to get_world_from_local() is a hack
-    // for this example as the instance_index builtin would map to the wrong
-    // index in the Mesh array. This index could be passed in via another
-    // uniform instead but it's unnecessary for the example.
+    let identity = mat4x4f(
+        1.0, 0.0, 0.0, 0.0,
+        0.0, 1.0, 0.0, 0.0,
+        0.0, 0.0, 1.0, 0.0,
+        0.0, 0.0, 0.0, 1.0
+    );
     out.clip_position = mesh_position_local_to_clip(
-        get_world_from_local(0u),
+        identity,
         vec4<f32>(position, 1.0)
     );
     out.color = vertex.i_color;

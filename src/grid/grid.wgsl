@@ -14,12 +14,16 @@ var<storage, read_write> nodes: array<Node>;
 var<uniform> sim_params: Params::SimulationParams;
 @group(0) @binding(5)
 var<storage, read_write> n_block_groups: DispatchIndirectArgs;
+// Per-node linked list for MPM particles.
 @group(0) @binding(6)
 var<storage, read_write> nodes_linked_lists: array<NodeLinkedListAtomic>;
 @group(0) @binding(7)
 var<storage, read_write> n_g2p_p2g_groups: DispatchIndirectArgs;
 @group(0) @binding(8)
 var<storage, read_write> num_collisions: array<atomic<u32>>;
+// Per-node linked list for rigid-body particles.
+@group(0) @binding(10)
+var<storage, read_write> nodes_rigid_linked_lists: array<NodeLinkedListAtomic>;
 
 
 struct NodeLinkedListAtomic {
@@ -223,14 +227,43 @@ struct Grid {
     capacity: u32,
 }
 
+const AFFINITY_BITS_MASK: u32 = 0x0000ffffu;
+const SIGN_BITS_SHIFT: u32 = 16;
+
+struct NodeCdf {
+    distance: f32,
+    // Two bits per collider.
+    // The 16 first bits are for affinity, the 16 last are for signs.
+    affinities: u32,
+    // Index to the closest collider.
+    closest_id: u32,
+}
+
+fn affinity_bit(i_collider: u32, affinity: u32) -> bool {
+    return (affinity & (1u << i_collider)) != 0;
+}
+
+fn sign_bit(i_collider: u32, affinity: u32) -> bool {
+    return ((affinity >> SIGN_BITS_SHIFT) & (1u << i_collider)) != 0;
+}
+
+fn affinities_are_compatible(affinity1: u32, affinity2: u32) -> bool {
+    let affinities_in_common = affinity1 & affinity2 & AFFINITY_BITS_MASK;
+    let signs1 = (affinity1 >> SIGN_BITS_SHIFT) & affinities_in_common;
+    let signs2 = (affinity2 >> SIGN_BITS_SHIFT) & affinities_in_common;
+    return signs1 == signs2;
+}
+
 struct Node {
     /// The first three components contains either the cell’s momentum or its velocity
     /// (depending on the context). The fourth component contains the cell’s mass.
+    // TODO: we don’t really need to pack ourself, wgsl will do it automatically.
     #if DIM == 2
     momentum_velocity_mass: vec3<f32>,
     #else
     momentum_velocity_mass: vec4<f32>,
     #endif
+    cdf: NodeCdf,
 }
 
 #if DIM == 2
@@ -337,8 +370,11 @@ fn reset(@builtin(global_invocation_id) invocation_id: vec3<u32>, @builtin(num_w
        #else
        nodes[i].momentum_velocity_mass = vec4(0.0);
        #endif
+       nodes[i].cdf = NodeCdf(0.0, 0, NONE);
        nodes_linked_lists[i].head = NONE;
        nodes_linked_lists[i].len = 0u;
+       nodes_rigid_linked_lists[i].head = NONE;
+       nodes_rigid_linked_lists[i].len = 0u;
    }
 }
 
@@ -349,4 +385,20 @@ struct SimulationParameters {
     #else
     gravity: vec3<f32>,
     #endif
+}
+
+fn project_velocity(vel: Vector, n: Vector) -> Vector {
+    // TODO: this should depend on the collider’s material
+    //       properties.
+    let normal_vel = dot(vel, n);
+
+    if normal_vel < 0.0 {
+        let friction = 20.0;
+        let tangent_vel = vel - n * normal_vel;
+        let tangent_vel_len = length(tangent_vel);
+        let tangent_vel_dir = select(Vector(0.0), tangent_vel / tangent_vel_len, tangent_vel_len > 1.0e-8);
+        return tangent_vel_dir * max(0.0, tangent_vel_len + friction * normal_vel);
+    } else {
+        return vel;
+    }
 }
