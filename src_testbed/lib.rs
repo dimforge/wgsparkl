@@ -26,7 +26,7 @@ pub mod step;
 pub mod ui;
 
 use bevy::asset::load_internal_asset;
-use bevy::ecs::system::{BoxedSystem, SystemId};
+use bevy::ecs::system::SystemId;
 use bevy::pbr::wireframe::WireframePlugin;
 use bevy::prelude::*;
 use bevy_editor_cam::prelude::DefaultEditorCamPlugins;
@@ -36,12 +36,7 @@ use instancing::INSTANCING_SHADER_HANDLE;
 use prep_vertex_buffer::{GpuRenderConfig, RenderConfig, WgPrepVertexBuffer};
 use wgcore::hot_reloading::HotReloadState;
 use wgcore::timestamps::GpuTimestamps;
-use wgsparkl::rapier::dynamics::{CCDSolver, IntegrationParameters, RigidBodySet};
-use wgsparkl::rapier::geometry::{ColliderSet, NarrowPhase};
-use wgsparkl::rapier::prelude::{
-    DefaultBroadPhase, ImpulseJointSet, IslandManager, MultibodyJointSet, PhysicsPipeline,
-    ShapeType,
-};
+use wgsparkl::rapier::prelude::ShapeType;
 use wgsparkl::{
     pipeline::{MpmData, MpmPipeline},
     solver::Particle,

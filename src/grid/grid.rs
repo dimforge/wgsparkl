@@ -364,6 +364,7 @@ mod test {
                         model: ElasticCoefficients::from_young_modulus(100_000.0, 0.33),
                         plasticity: None,
                         phase: None,
+                        color: None,
                     });
                 }
             }
