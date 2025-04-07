@@ -1,3 +1,6 @@
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::module_inception)]
+
 #[cfg(feature = "dim2")]
 pub extern crate rapier2d as rapier;
 #[cfg(feature = "dim3")]

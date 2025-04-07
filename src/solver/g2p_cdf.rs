@@ -4,9 +4,8 @@ use crate::solver::params::{GpuSimulationParams, WgParams};
 use crate::solver::GpuParticles;
 use crate::solver::WgParticle;
 use crate::{dim_shader_defs, substitute_aliases};
-use naga_oil::compose::NagaModuleDescriptor;
 use wgcore::kernel::{KernelInvocationBuilder, KernelInvocationQueue};
-use wgcore::{utils, Shader};
+use wgcore::Shader;
 use wgebra::WgInv;
 use wgpu::ComputePipeline;
 

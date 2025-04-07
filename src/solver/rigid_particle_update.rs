@@ -1,19 +1,11 @@
-use crate::collision::WgCollide;
 use crate::dim_shader_defs;
-use crate::grid::grid::{GpuGrid, WgGrid};
-use crate::grid::kernel::WgKernel;
-use crate::models::{GpuModels, WgDruckerPrager, WgLinearElasticity, WgNeoHookeanElasticity};
-use crate::solver::params::{GpuSimulationParams, WgParams};
+use crate::solver::GpuRigidParticles;
 use crate::solver::WgParticle;
-use crate::solver::{GpuParticles, GpuRigidParticles};
-use encase::ShaderType;
-use rapier::math::{AngVector, Vector};
 use wgcore::kernel::{KernelInvocationBuilder, KernelInvocationQueue};
-use wgcore::tensor::GpuVector;
 use wgcore::Shader;
 use wgebra::{WgSim2, WgSim3};
 use wgparry::substitute_aliases;
-use wgpu::{BufferUsages, ComputePipeline, Device};
+use wgpu::ComputePipeline;
 use wgrapier::dynamics::{GpuBodySet, WgBody};
 
 #[derive(Shader)]

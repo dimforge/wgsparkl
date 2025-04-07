@@ -1,10 +1,9 @@
 use crate::dim_shader_defs;
 use crate::grid::grid::{GpuGrid, WgGrid};
 use crate::grid::kernel::WgKernel;
-use crate::models::WgLinearElasticity;
 use crate::solver::params::WgParams;
-use crate::solver::{GpuImpulses, GpuParticles, GpuRigidParticles};
-use crate::solver::{WgParticle, WgRigidImpulses};
+use crate::solver::GpuRigidParticles;
+use crate::solver::WgParticle;
 use crate::substitute_aliases;
 use wgcore::kernel::{KernelInvocationBuilder, KernelInvocationQueue};
 use wgcore::Shader;

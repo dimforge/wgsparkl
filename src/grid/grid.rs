@@ -94,7 +94,7 @@ impl WgGrid {
             let touch_rigid_particle_blocks = &sort_module.touch_rigid_particle_blocks;
             #[cfg(target_os = "macos")]
             let touch_rigid_particle_blocks = &touch_particle_blocks.touch_rigid_particle_blocks;
-            KernelInvocationBuilder::new(queue, &touch_rigid_particle_blocks)
+            KernelInvocationBuilder::new(queue, touch_rigid_particle_blocks)
                 .bind_at(
                     0,
                     [
@@ -130,7 +130,7 @@ impl WgGrid {
             .bind_at(
                 0,
                 [
-                    (&grid.meta.buffer(), 0),
+                    (grid.meta.buffer(), 0),
                     (&*grid.indirect_n_blocks_groups, 5),
                     (&*grid.indirect_n_g2p_p2g_groups, 7),
                 ],
@@ -313,7 +313,7 @@ impl GpuGrid {
             usage: BufferUsages::STORAGE | BufferUsages::INDIRECT,
             mapped_at_creation: false,
         }));
-        let debug = GpuVector::init(device, &[0, 0], BufferUsages::STORAGE);
+        let debug = GpuVector::init(device, [0, 0], BufferUsages::STORAGE);
 
         Self {
             cpu_meta,

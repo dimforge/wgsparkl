@@ -4,7 +4,6 @@ use crate::solver::ParticlePhase;
 use encase::ShaderType;
 use nalgebra::{vector, Matrix2, Point2, Vector2};
 use rapier::geometry::{ColliderSet, Polyline, Segment};
-use std::ops::Div;
 use wgcore::tensor::GpuVector;
 use wgcore::Shader;
 use wgpu::{BufferUsages, Device};
@@ -140,6 +139,10 @@ pub struct GpuParticles {
 }
 
 impl GpuParticles {
+    pub fn is_empty(&self) -> bool {
+        self.positions.is_empty()
+    }
+
     pub fn len(&self) -> usize {
         self.positions.len() as usize
     }

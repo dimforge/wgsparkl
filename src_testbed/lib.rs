@@ -1,3 +1,6 @@
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::module_inception)]
+
 #[cfg(feature = "dim2")]
 pub extern crate wgsparkl2d as wgsparkl;
 #[cfg(feature = "dim3")]
@@ -32,10 +35,8 @@ use instancing::INSTANCING_SHADER_HANDLE;
 use prep_vertex_buffer::{GpuRenderConfig, RenderConfig, WgPrepVertexBuffer};
 use wgcore::hot_reloading::HotReloadState;
 use wgcore::timestamps::GpuTimestamps;
-use wgsparkl::rapier::dynamics::{
-    CCDSolver, ImpulseJoint, IntegrationParameters, MultibodyJoint, RigidBodySet,
-};
-use wgsparkl::rapier::geometry::{BroadPhase, ColliderSet, NarrowPhase};
+use wgsparkl::rapier::dynamics::{CCDSolver, IntegrationParameters, RigidBodySet};
+use wgsparkl::rapier::geometry::{ColliderSet, NarrowPhase};
 use wgsparkl::rapier::prelude::{
     DefaultBroadPhase, ImpulseJointSet, IslandManager, MultibodyJointSet, PhysicsPipeline,
     ShapeType,

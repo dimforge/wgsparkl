@@ -10,8 +10,8 @@ use crate::solver::{
     WgRigidImpulses, WgRigidParticleUpdate,
 };
 use naga_oil::compose::ComposerError;
-use rapier::dynamics::{RigidBodyHandle, RigidBodySet};
-use rapier::geometry::{ColliderHandle, ColliderSet};
+use rapier::dynamics::RigidBodySet;
+use rapier::geometry::ColliderSet;
 use wgcore::hot_reloading::HotReloadState;
 use wgcore::kernel::KernelInvocationQueue;
 use wgcore::tensor::GpuVector;
@@ -19,7 +19,7 @@ use wgcore::Shader;
 use wgparry::math::GpuSim;
 use wgpu::{BufferUsages, Device};
 use wgrapier::dynamics::body::{BodyCoupling, BodyCouplingEntry};
-use wgrapier::dynamics::{BodyDesc, GpuBodySet, WgIntegrate};
+use wgrapier::dynamics::{GpuBodySet, WgIntegrate};
 
 pub struct MpmPipeline {
     grid: WgGrid,
@@ -79,11 +79,6 @@ impl MpmPipeline {
 
         Ok(changed)
     }
-}
-
-pub struct PhysicsData<'a> {
-    bodies: &'a RigidBodySet,
-    colliders: &'a ColliderSet,
 }
 
 pub struct MpmData {
@@ -227,8 +222,7 @@ impl MpmPipeline {
 
         queue.compute_pass("grid_update_cdf", add_timestamps);
 
-        self.grid_update_cdf
-            .queue(queue, &data.sim_params, &data.grid, &data.bodies);
+        self.grid_update_cdf.queue(queue, &data.grid, &data.bodies);
 
         queue.compute_pass("p2g_cdf", add_timestamps);
 

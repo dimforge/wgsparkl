@@ -2,7 +2,7 @@ use crate::dim_shader_defs;
 use crate::models::{DruckerPrager, ElasticCoefficients};
 use crate::solver::ParticlePhase;
 use encase::ShaderType;
-use nalgebra::{vector, Isometry3, Matrix3, Matrix4, Matrix4x3, Point3, Vector3, Vector4};
+use nalgebra::{vector, Matrix3, Point3, Vector3, Vector4};
 use rapier::geometry::{Segment, Triangle};
 use rapier::prelude::{ColliderSet, TriMesh};
 use std::collections::HashSet;
@@ -170,6 +170,10 @@ pub struct GpuParticles {
 }
 
 impl GpuParticles {
+    pub fn is_empty(&self) -> bool {
+        self.positions.is_empty()
+    }
+
     pub fn len(&self) -> usize {
         self.positions.len() as usize
     }
@@ -201,11 +205,6 @@ fn sample_trimesh(trimesh: &TriMesh, params: &SamplingParams, buffers: &mut Samp
 
     for sample in samples {
         let tri_idx = trimesh.indices()[sample.triangle_id as usize];
-        let tri = Triangle::new(
-            trimesh.vertices()[tri_idx[0] as usize],
-            trimesh.vertices()[tri_idx[1] as usize],
-            trimesh.vertices()[tri_idx[2] as usize],
-        );
         let sample_id = GpuSampleIds {
             triangle: vector![
                 params.base_vid + tri_idx[0],

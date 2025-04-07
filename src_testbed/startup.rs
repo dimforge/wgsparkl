@@ -1,6 +1,6 @@
 use crate::instancing::{InstanceBuffer, InstanceData, InstanceMaterialData};
 use crate::prep_vertex_buffer::{GpuRenderConfig, RenderConfig, RenderMode, WgPrepVertexBuffer};
-use crate::rigid_graphics::{BevyMaterial, EntityWithGraphics, InstancedMaterials};
+use crate::rigid_graphics::{BevyMaterial, EntityWithGraphics};
 use crate::step::TimestampChannel;
 use crate::{AppState, PhysicsContext, RenderContext, RunState, Timestamps};
 use bevy::asset::Assets;
@@ -12,9 +12,8 @@ use bevy::prelude::*;
 use bevy::render::render_resource::BufferUsages;
 use bevy::render::renderer::RenderDevice;
 use bevy::render::view::NoFrustumCulling;
-use bevy_editor_cam::prelude::{EditorCam, EnabledMotion};
+use bevy_editor_cam::prelude::EditorCam;
 use nalgebra::point;
-use std::collections::HashMap;
 use std::sync::Arc;
 use wgcore::hot_reloading::HotReloadState;
 use wgcore::tensor::GpuVector;
@@ -72,16 +71,10 @@ pub fn setup_app(mut commands: Commands, device: Res<RenderDevice>) {
     #[cfg(feature = "dim2")]
     {
         commands.spawn((
-            Camera3dBundle {
-                transform: Transform::from_translation(Vec3::new(25.0, 25.0, 100.0)),
-                // projection: Projection::Orthographic(OrthographicProjection {
-                //     // scaling_mode: ScalingMode::FixedVertical(6.0),
-                //     ..OrthographicProjection::default_3d()
-                // }),
-                ..default()
-            },
+            Camera3d::default(),
+            Transform::from_translation(Vec3::new(25.0, 25.0, 100.0)),
             EditorCam {
-                enabled_motion: EnabledMotion {
+                enabled_motion: bevy_editor_cam::prelude::EnabledMotion {
                     orbit: false,
                     ..Default::default()
                 },
@@ -94,10 +87,8 @@ pub fn setup_app(mut commands: Commands, device: Res<RenderDevice>) {
     #[cfg(feature = "dim3")]
     {
         commands.spawn((
-            Camera3dBundle {
-                transform: Transform::from_translation(Vec3::new(0.0, 1.5, 5.0)),
-                ..default()
-            },
+            Camera3d::default(),
+            Transform::from_translation(Vec3::new(0.0, 1.5, 5.0)),
             EditorCam::default(),
         ));
     }
@@ -105,12 +96,12 @@ pub fn setup_app(mut commands: Commands, device: Res<RenderDevice>) {
 
 fn setup_rapier_graphics(
     commands: &mut Commands,
-    device: &RenderDevice,
+    _device: &RenderDevice,
     physics: &PhysicsContext,
     rigid_render: &mut RenderContext,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<BevyMaterial>,
-    to_clear: &Query<Entity, With<InstanceMaterialData>>,
+    _to_clear: &Query<Entity, With<InstanceMaterialData>>,
 ) {
     for rigid in rigid_render.rigid_entities.drain(..) {
         commands.entity(rigid.entity).despawn_recursive();
@@ -202,7 +193,8 @@ fn setup_particles_graphics(
     let num_instances = instances.len();
     commands.spawn((
         Mesh3d(cube.clone()),
-        SpatialBundle::INHERITED_IDENTITY,
+        Transform::IDENTITY,
+        Visibility::Inherited,
         InstanceMaterialData {
             data: instances,
             buffer: InstanceBuffer {

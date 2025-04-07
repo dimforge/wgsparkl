@@ -3,17 +3,15 @@ use crate::startup::RigidParticlesTag;
 use crate::{AppState, PhysicsContext, RunState, Timestamps};
 use async_channel::{Receiver, Sender};
 use bevy::prelude::*;
-use bevy::render::renderer::{RenderDevice, RenderQueue, WgpuWrapper};
+use bevy::render::renderer::{RenderDevice, RenderQueue};
 use bevy::tasks::ComputeTaskPool;
-use std::time::Instant;
 use wgcore::kernel::KernelInvocationQueue;
 use wgcore::re_exports::encase::StorageBuffer;
 use wgcore::timestamps::GpuTimestamps;
-use wgpu::{Device, Queue};
 use wgsparkl::rapier::math::Vector;
 use wgsparkl::rapier::prelude::RigidBodyPosition;
 use wgsparkl::wgparry::math::GpuSim;
-use wgsparkl::wgrapier::dynamics::{GpuBodySet, GpuVelocity};
+use wgsparkl::wgrapier::dynamics::GpuVelocity;
 
 #[derive(Resource)]
 pub struct TimestampChannel {
@@ -46,11 +44,11 @@ pub fn step_simulation(
 }
 
 pub fn step_simulation_legacy(
-    mut timings: &mut Timestamps,
+    timings: &mut Timestamps,
     render_device: &RenderDevice,
     render_queue: &RenderQueue,
-    mut physics: &mut PhysicsContext,
-    mut app_state: &mut AppState,
+    physics: &mut PhysicsContext,
+    app_state: &mut AppState,
     particles: &Query<&InstanceMaterialData, Without<RigidParticlesTag>>,
     rigid_particles: &Query<&InstanceMaterialData, With<RigidParticlesTag>>,
     timings_channel: &TimestampChannel,
@@ -65,7 +63,9 @@ pub fn step_simulation_legacy(
         *timings = new_timings;
     }
 
-    timings.timestamps.as_mut().map(|t| t.clear());
+    if let Some(t) = timings.timestamps.as_mut() {
+        t.clear()
+    }
 
     // Run the simulation.
     let device = render_device.wgpu_device();
@@ -107,6 +107,7 @@ pub fn step_simulation_legacy(
                 linear: *rb.linvel()
                     + gravity * physics.rapier_data.params.dt * (rb.is_dynamic() as u32 as f32)
                         / (app_state.num_substeps as f32),
+                #[allow(clippy::clone_on_copy)] // Needed for the 2d/3d switch.
                 angular: rb.angvel().clone(),
             }
         })
@@ -128,7 +129,7 @@ pub fn step_simulation_legacy(
     physics
         .data
         .poses_staging
-        .copy_from(&mut encoder, &physics.data.bodies.poses());
+        .copy_from(&mut encoder, physics.data.bodies.poses());
 
     // physics
     //     .data
@@ -141,7 +142,9 @@ pub fn step_simulation_legacy(
     //     .cdf_read
     //     .copy_from_encased(&mut encoder, &physics.data.particles.cdf);
 
-    timings.timestamps.as_mut().map(|t| t.resolve(&mut encoder));
+    if let Some(t) = timings.timestamps.as_mut() {
+        t.resolve(&mut encoder)
+    }
 
     // Prepare the vertex buffer for rendering the particles.
     if let Ok(instances_buffer) = particles.get_single() {
@@ -177,7 +180,6 @@ pub fn step_simulation_legacy(
         for (i, coupling) in physics.data.coupling().iter().enumerate() {
             let rb = &mut physics.rapier_data.bodies[coupling.body];
             if rb.is_dynamic() {
-                let vel_before = *rb.linvel();
                 let interpolator = RigidBodyPosition {
                     position: *rb.position(),
                     #[cfg(feature = "dim2")]
@@ -197,7 +199,7 @@ pub fn step_simulation_legacy(
     }
 
     let mut params = physics.rapier_data.params;
-    params.dt = params.dt / divisor;
+    params.dt /= divisor;
     physics.rapier_data.physics_pipeline.step(
         &nalgebra::zero(),
         &params, // physics.rapier_data.params,

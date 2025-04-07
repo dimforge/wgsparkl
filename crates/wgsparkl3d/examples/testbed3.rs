@@ -1,15 +1,5 @@
-use wgsparkl_testbed3d::{wgsparkl, RapierData};
-
 use bevy::prelude::*;
-use wgparry3d::parry::shape::Cuboid;
-use wgrapier3d::dynamics::BodyDesc;
-use wgsparkl::models::DruckerPrager;
-use wgsparkl::{
-    models::ElasticCoefficients,
-    pipeline::MpmData,
-    solver::{Particle, ParticlePhase, SimulationParams},
-};
-use wgsparkl_testbed3d::{init_testbed, AppState, PhysicsContext, SceneInits};
+use wgsparkl_testbed3d::{init_testbed, SceneInits};
 
 mod elastic_cut3;
 mod heightfield3;

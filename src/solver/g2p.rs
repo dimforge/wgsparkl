@@ -4,7 +4,6 @@ use crate::solver::params::{GpuSimulationParams, WgParams};
 use crate::solver::GpuParticles;
 use crate::solver::WgParticle;
 use crate::{dim_shader_defs, substitute_aliases};
-use std::ops::Deref;
 use wgcore::kernel::{KernelInvocationBuilder, KernelInvocationQueue};
 use wgcore::Shader;
 use wgpu::ComputePipeline;

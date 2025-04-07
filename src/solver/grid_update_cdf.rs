@@ -1,7 +1,6 @@
 use crate::collision::WgCollide;
 use crate::dim_shader_defs;
 use crate::grid::grid::{GpuGrid, WgGrid};
-use crate::solver::params::GpuSimulationParams;
 use wgcore::kernel::{KernelInvocationBuilder, KernelInvocationQueue};
 use wgcore::Shader;
 use wgpu::ComputePipeline;
@@ -21,7 +20,6 @@ impl WgGridUpdateCdf {
     pub fn queue<'a>(
         &'a self,
         queue: &mut KernelInvocationQueue<'a>,
-        sim_params: &GpuSimulationParams,
         grid: &GpuGrid,
         bodies: &GpuBodySet,
     ) {

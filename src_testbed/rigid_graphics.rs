@@ -6,7 +6,7 @@ use bevy::render::mesh::{Indices, VertexAttributeValues};
 //use crate::objects::plane::Plane;
 use bevy::pbr::wireframe::Wireframe;
 use bevy::render::render_resource::PrimitiveTopology;
-use nalgebra::{point, Point2, Point3, Vector3};
+use nalgebra::{point, Point3, Vector3};
 use std::collections::HashMap;
 use wgsparkl::rapier::geometry::{ColliderHandle, ColliderSet, Shape, ShapeType};
 #[cfg(feature = "dim3")]
@@ -16,7 +16,7 @@ use wgsparkl::rapier::math::{Isometry, Real, Vector};
 use crate::{PhysicsContext, RenderContext};
 #[cfg(feature = "dim2")]
 use {
-    nalgebra::Vector2,
+    nalgebra::{Point2, Vector2},
     wgsparkl::rapier::geometry::{Ball, Cuboid},
 };
 
@@ -27,7 +27,7 @@ pub type BevyMaterial = StandardMaterial;
 // #[cfg(feature = "dim2")]
 // pub type BevyMaterialComponent = MeshMaterial2d<BevyMaterial>;
 // #[cfg(feature = "dim3")]
-pub type BevyMaterialComponent = MeshMaterial3d<BevyMaterial>;
+// pub type BevyMaterialComponent = MeshMaterial3d<BevyMaterial>;
 
 pub type InstancedMaterials = HashMap<Point3<usize>, Handle<BevyMaterial>>;
 pub const SELECTED_OBJECT_MATERIAL_KEY: Point3<usize> = point![42, 42, 42];
@@ -84,7 +84,7 @@ impl EntityWithGraphics {
         collider_pos: Isometry<Real>,
         delta: Isometry<Real>,
         color: Point3<f32>,
-        sensor: bool,
+        _sensor: bool,
     ) -> Self {
         // Make sure prefabs are generated.
         gen_prefab_meshes(prefab_meshes, meshes);
@@ -117,7 +117,7 @@ impl EntityWithGraphics {
         }
         #[cfg(feature = "dim2")]
         {
-            if sensor {
+            if _sensor {
                 transform.translation.z = -10.0;
             }
             transform.rotation = Quat::from_rotation_z(shape_pos.rotation.angle() as f32);
@@ -349,6 +349,7 @@ fn bevy_mesh(buffers: (Vec<Point3<Real>>, Vec<[u32; 3]>)) -> Mesh {
     bevy_mesh3d(buffers)
 }
 
+#[cfg(feature = "dim2")]
 fn bevy_mesh2d(buffers: (Vec<Point2<Real>>, Vec<[u32; 3]>)) -> Mesh {
     bevy_mesh3d((
         buffers

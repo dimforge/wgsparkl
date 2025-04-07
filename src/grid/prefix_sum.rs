@@ -1,8 +1,7 @@
-use naga_oil::compose::NagaModuleDescriptor;
 use nalgebra::DVector;
 use wgcore::kernel::{KernelInvocationBuilder, KernelInvocationQueue};
 use wgcore::tensor::GpuVector;
-use wgcore::{utils, Shader};
+use wgcore::Shader;
 use wgpu::{BufferUsages, ComputePipeline, Device};
 
 /// This is a special variant of the prefix sum algorithm that assumes a 0 is always prepended
@@ -18,7 +17,7 @@ pub struct WgPrefixSum {
 impl WgPrefixSum {
     const THREADS: u32 = 256;
 
-    pub fn queue<'a, 'b>(
+    pub fn queue<'a>(
         &'a self,
         queue: &mut KernelInvocationQueue<'a>,
         workspace: &mut PrefixSumWorkspace,
@@ -42,7 +41,7 @@ impl WgPrefixSum {
 
         for i in 0..workspace.num_stages - 1 {
             let ngroups = workspace.stages[i + 1].buffer.len() as u32;
-            let buf = workspace.stages[i + 0].buffer.buffer();
+            let buf = workspace.stages[i].buffer.buffer();
             let aux = workspace.stages[i + 1].buffer.buffer();
 
             KernelInvocationBuilder::new(queue, &self.prefix_sum)
@@ -53,7 +52,7 @@ impl WgPrefixSum {
         if workspace.num_stages > 2 {
             for i in (0..workspace.num_stages - 2).rev() {
                 let ngroups = workspace.stages[i + 1].buffer.len() as u32;
-                let buf = workspace.stages[i + 0].buffer.buffer();
+                let buf = workspace.stages[i].buffer.buffer();
                 let aux = workspace.stages[i + 1].buffer.buffer();
 
                 KernelInvocationBuilder::new(queue, &self.add_data_grp)
@@ -122,7 +121,7 @@ impl PrefixSumWorkspace {
             while stage_len != 1 {
                 let buffer = GpuVector::init(
                     device,
-                    &DVector::<u32>::zeros(stage_len as usize),
+                    DVector::<u32>::zeros(stage_len as usize),
                     BufferUsages::STORAGE,
                 );
                 self.stages.push(PrefixSumStage {
@@ -136,7 +135,7 @@ impl PrefixSumWorkspace {
             // The last stage always has only 1 element.
             self.stages.push(PrefixSumStage {
                 capacity: 1,
-                buffer: GpuVector::init(device, &DVector::<u32>::zeros(1), BufferUsages::STORAGE),
+                buffer: GpuVector::init(device, DVector::<u32>::zeros(1), BufferUsages::STORAGE),
             });
             self.num_stages = self.stages.len();
         } else if self.stages[0].buffer.len() as u32 != stage_len {

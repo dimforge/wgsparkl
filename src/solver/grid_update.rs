@@ -4,7 +4,6 @@ use crate::solver::params::GpuSimulationParams;
 use wgcore::kernel::{KernelInvocationBuilder, KernelInvocationQueue};
 use wgcore::Shader;
 use wgpu::ComputePipeline;
-use wgrapier::dynamics::GpuBodySet;
 
 #[derive(Shader)]
 #[shader(

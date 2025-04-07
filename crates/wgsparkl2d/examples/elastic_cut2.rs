@@ -2,12 +2,8 @@ use wgsparkl_testbed2d::{wgsparkl, RapierData};
 
 use bevy::prelude::*;
 use bevy::render::renderer::RenderDevice;
-use nalgebra::{point, vector, Similarity2, Vector2};
+use nalgebra::{point, vector, Vector2};
 use rapier2d::prelude::{ColliderBuilder, RigidBodyBuilder};
-use wgebra::GpuSim2;
-use wgparry2d::parry::shape::Cuboid;
-use wgrapier2d::dynamics::{BodyDesc, GpuVelocity};
-use wgsparkl::models::DruckerPrager;
 use wgsparkl::solver::ParticlePhase;
 use wgsparkl::{
     models::ElasticCoefficients,
@@ -15,8 +11,9 @@ use wgsparkl::{
     solver::{Particle, SimulationParams},
 };
 use wgsparkl2d::solver::ParticleDynamics;
-use wgsparkl_testbed2d::{init_testbed, AppState, PhysicsContext, SceneInits};
+use wgsparkl_testbed2d::{AppState, PhysicsContext};
 
+#[allow(dead_code)]
 fn main() {
     panic!("Run the `testbed3` example instead.");
 }
@@ -63,7 +60,7 @@ pub fn elastic_cut_demo(
         padding: 0.0,
     };
 
-    const ANGVEL: f32 = 1.0; // 2.0;
+    // const ANGVEL: f32 = 1.0; // 2.0;
 
     /*
      * Static platforms.

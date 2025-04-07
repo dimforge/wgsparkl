@@ -1,11 +1,6 @@
-use crate::collision::WgCollide;
 use crate::dim_shader_defs;
 use crate::grid::grid::{GpuGrid, WgGrid};
-use crate::grid::kernel::WgKernel;
-use crate::models::{GpuModels, WgDruckerPrager, WgLinearElasticity, WgNeoHookeanElasticity};
 use crate::solver::params::{GpuSimulationParams, WgParams};
-use crate::solver::GpuParticles;
-use crate::solver::WgParticle;
 use encase::ShaderType;
 use rapier::math::{AngVector, Point, Vector};
 use wgcore::kernel::{KernelInvocationBuilder, KernelInvocationQueue};
@@ -13,7 +8,7 @@ use wgcore::tensor::GpuVector;
 use wgcore::Shader;
 use wgebra::{WgSim2, WgSim3};
 use wgparry::substitute_aliases;
-use wgpu::{BufferUsages, ComputePipeline, Device};
+use wgpu::{BufferUsages, ComputePipeline};
 use wgrapier::dynamics::{GpuBodySet, WgBody};
 
 #[derive(Shader)]
@@ -47,15 +42,15 @@ impl GpuImpulses {
         const MAX_BODY_COUNT: usize = 16; // CPIC doesnt support more.
         let impulses = [RigidImpulse::default(); MAX_BODY_COUNT];
         Self {
-            incremental_impulses: GpuVector::encase(device, &impulses, BufferUsages::STORAGE),
+            incremental_impulses: GpuVector::encase(device, impulses, BufferUsages::STORAGE),
             total_impulses: GpuVector::encase(
                 device,
-                &impulses,
+                impulses,
                 BufferUsages::STORAGE | BufferUsages::COPY_SRC,
             ),
             total_impulses_staging: GpuVector::encase(
                 device,
-                &impulses,
+                impulses,
                 BufferUsages::MAP_READ | BufferUsages::COPY_DST,
             ),
         }
