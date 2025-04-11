@@ -3,6 +3,7 @@ use nalgebra::Point3;
 
 use f32 as Real;
 
+#[allow(clippy::type_complexity)]
 pub fn load_mesh_vertices_indices(mesh: &Mesh) -> Option<(Vec<Point3<Real>>, Vec<[u32; 3]>)> {
     use rapier3d::na::point;
 

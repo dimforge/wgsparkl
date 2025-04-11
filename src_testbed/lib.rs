@@ -99,7 +99,6 @@ pub struct AppState {
     pub selected_scene: usize,
     pub hot_reload: HotReloadState,
     pub show_rigid_particles: bool,
-    pub physics_time_seconds: f64,
 }
 
 pub use wgsparkl::rapier::prelude::PhysicsContext as RapierData;

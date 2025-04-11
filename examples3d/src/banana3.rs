@@ -132,9 +132,11 @@ pub fn demo(
 }
 
 fn move_knife_function(body_handle: RigidBodyHandle) -> Callback {
+    let mut ticks = 0;
     Box::new(
-        move |_render, physics: &mut PhysicsContext, _timestamps, app_state: &AppState| {
-            let t = app_state.physics_time_seconds as f32;
+        move |_render, physics: &mut PhysicsContext, _timestamps, _app_state: &AppState| {
+            let t = ticks as f32 * physics.rapier_data.integration_parameters.dt;
+            ticks += 1;
 
             let body = physics.rapier_data.bodies.get_mut(body_handle).unwrap();
             let length = 1.31;
