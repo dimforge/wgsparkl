@@ -16,6 +16,8 @@ pub extern crate wgrapier3d as wgrapier;
 
 mod collision;
 pub mod grid;
+#[cfg(feature = "dim3")]
+pub mod load_mesh3d;
 pub mod models;
 pub mod pipeline;
 pub mod solver;

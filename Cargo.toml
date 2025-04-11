@@ -4,6 +4,8 @@ members = [
     "crates/wgsparkl-testbed3d",
     "crates/wgsparkl2d",
     "crates/wgsparkl3d",
+    "examples3d",
+    "examples2d",
 ]
 resolver = "2"
 
@@ -32,6 +34,10 @@ wgparry2d = { git = "https://github.com/dimforge/wgmath.git", rev = "6d17942bd84
 wgrapier3d = { git = "https://github.com/dimforge/wgmath.git", rev = "6d17942bd841efdfcc696d8455b22be3a8ddfe8d" }
 wgrapier2d = { git = "https://github.com/dimforge/wgmath.git", rev = "6d17942bd841efdfcc696d8455b22be3a8ddfe8d" }
 rapier3d = { git = "https://github.com/vrixyz/rapier.git", branch = "uber_physics_context" }
+rapier2d = { git = "https://github.com/vrixyz/rapier.git", branch = "uber_physics_context" }
 
 [profile.release]
 opt-level = 'z'
+
+[profile.dev]
+opt-level = 1
