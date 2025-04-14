@@ -6,6 +6,7 @@ pub extern crate wgsparkl2d as wgsparkl;
 #[cfg(feature = "dim3")]
 pub extern crate wgsparkl3d as wgsparkl;
 
+use bevy::render::renderer::RenderDevice;
 #[cfg(feature = "dim2")]
 pub use instancing2d as instancing;
 #[cfg(feature = "dim3")]
@@ -35,12 +36,7 @@ use instancing::INSTANCING_SHADER_HANDLE;
 use prep_vertex_buffer::{GpuRenderConfig, RenderConfig, WgPrepVertexBuffer};
 use wgcore::hot_reloading::HotReloadState;
 use wgcore::timestamps::GpuTimestamps;
-use wgsparkl::rapier::dynamics::{CCDSolver, IntegrationParameters, RigidBodySet};
-use wgsparkl::rapier::geometry::{ColliderSet, NarrowPhase};
-use wgsparkl::rapier::prelude::{
-    DefaultBroadPhase, ImpulseJointSet, IslandManager, MultibodyJointSet, PhysicsPipeline,
-    ShapeType,
-};
+use wgsparkl::rapier::prelude::ShapeType;
 use wgsparkl::{
     pipeline::{MpmData, MpmPipeline},
     solver::Particle,
@@ -56,12 +52,15 @@ pub fn init_testbed(app: &mut App) {
         .add_plugins(instancing::ParticlesMaterialPlugin)
         .add_plugins(bevy_egui::EguiPlugin)
         .init_resource::<SceneInits>()
+        .init_resource::<Callbacks>()
         .add_systems(Startup, startup::setup_app)
         .add_systems(
             Update,
             (
                 ui::update_ui,
-                step::step_simulation,
+                (step::step_simulation, step::callbacks)
+                    .chain()
+                    .run_if(|state: Res<AppState>| state.run_state != RunState::Paused),
                 rigid_graphics::update_rigid_graphics,
                 hot_reload::handle_hot_reloading,
             )
@@ -102,19 +101,7 @@ pub struct AppState {
     pub show_rigid_particles: bool,
 }
 
-#[derive(Default)]
-pub struct RapierData {
-    pub bodies: RigidBodySet,
-    pub colliders: ColliderSet,
-    pub impulse_joints: ImpulseJointSet,
-    pub multibody_joints: MultibodyJointSet,
-    pub params: IntegrationParameters,
-    pub physics_pipeline: PhysicsPipeline,
-    pub narrow_phase: NarrowPhase,
-    pub broad_phase: DefaultBroadPhase,
-    pub ccd_solver: CCDSolver,
-    pub islands: IslandManager,
-}
+pub use wgsparkl::rapier::prelude::PhysicsContext as RapierData;
 
 #[derive(Resource)]
 pub struct PhysicsContext {
@@ -122,6 +109,15 @@ pub struct PhysicsContext {
     pub rapier_data: RapierData,
     pub particles: Vec<Particle>,
 }
+
+#[derive(Resource, Default)]
+pub struct Callbacks(pub Vec<Callback>);
+
+pub type Callback = Box<
+    dyn FnMut(Option<&mut RenderContext>, &mut PhysicsContext, &Timestamps, &AppState)
+        + Send
+        + Sync,
+>;
 
 #[derive(Resource, Default)]
 pub struct RenderContext {
@@ -169,15 +165,34 @@ pub enum RunState {
 
 #[derive(Resource)]
 pub struct SceneInits {
-    pub scenes: Vec<(String, SystemId)>,
+    pub scenes: Vec<(String, SceneInitFn)>,
     reset_graphics: SystemId,
+    reset_app_state: SystemId,
 }
+pub type SceneInitFn =
+    Box<dyn FnMut(RenderDevice, &mut AppState, &mut Callbacks) -> PhysicsContext + Send + Sync>;
 
 impl SceneInits {
     pub fn init_scene(&self, commands: &mut Commands, scene_id: usize) {
-        commands.run_system(self.scenes[scene_id].1);
+        commands.run_system(self.reset_app_state);
+        commands.run_system_cached_with(run_scene_init, scene_id);
         commands.run_system(self.reset_graphics);
     }
+}
+
+pub fn run_scene_init(
+    scene_id: In<usize>,
+    mut commands: Commands,
+    mut scenes: ResMut<SceneInits>,
+    device: Res<RenderDevice>,
+    mut app_state: ResMut<AppState>,
+    mut callbacks: ResMut<Callbacks>,
+) {
+    commands.insert_resource(scenes.scenes[scene_id.0].1(
+        device.clone(),
+        &mut app_state,
+        &mut callbacks,
+    ));
 }
 
 impl FromWorld for SceneInits {
@@ -185,6 +200,7 @@ impl FromWorld for SceneInits {
         Self {
             scenes: vec![],
             reset_graphics: world.register_system(startup::setup_graphics),
+            reset_app_state: world.register_system(startup::setup_app_state),
         }
     }
 }

@@ -36,10 +36,5 @@ getrandom = { version = "0.3.1", features = ["wasm_js"] }
 uuid = { version = "1", features = ["js"] }
 
 [dev-dependencies]
-nalgebra = { version = "0.33", features = ["rand"] }
 futures-test = "0.3"
 serial_test = "3"
-approx = "0.5"
-async-std = { version = "1", features = ["attributes"] }
-bevy = { version = "0.15.0", features = ["shader_format_glsl", "shader_format_spirv", "webgpu"] }
-wgsparkl_testbed2d = { path = "../wgsparkl-testbed2d", features = ["dim2"] }

@@ -13,8 +13,8 @@ path = "../../src_testbed/lib.rs"
 required-features = ["dim2"]
 
 [features]
-dim2 = []
 default = ["dim2"]
+dim2 = []
 
 [dependencies]
 nalgebra = { workspace = true, features = ["rand"] }

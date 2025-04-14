@@ -8,6 +8,7 @@ use bevy_egui::{egui, EguiContexts};
 use nalgebra::vector;
 use wgsparkl::solver::SimulationParams;
 
+#[allow(clippy::too_many_arguments)]
 pub fn update_ui(
     mut commands: Commands,
     mut ui_context: EguiContexts,

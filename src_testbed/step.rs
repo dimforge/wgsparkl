@@ -1,6 +1,6 @@
 use crate::instancing::InstanceMaterialData;
 use crate::startup::RigidParticlesTag;
-use crate::{AppState, PhysicsContext, RunState, Timestamps};
+use crate::{AppState, Callbacks, PhysicsContext, RenderContext, RunState, Timestamps};
 use async_channel::{Receiver, Sender};
 use bevy::prelude::*;
 use bevy::render::renderer::{RenderDevice, RenderQueue};
@@ -17,6 +17,23 @@ use wgsparkl::wgrapier::dynamics::GpuVelocity;
 pub struct TimestampChannel {
     pub snd: Sender<Timestamps>,
     pub rcv: Receiver<Timestamps>,
+}
+
+pub fn callbacks(
+    mut render: ResMut<RenderContext>,
+    mut physics: ResMut<PhysicsContext>,
+    app_state: ResMut<AppState>,
+    timings: Res<Timestamps>,
+    mut callbacks: ResMut<Callbacks>,
+) {
+    for to_call in callbacks.0.iter_mut() {
+        to_call(
+            Some(&mut render),
+            &mut physics,
+            timings.as_ref(),
+            &app_state,
+        );
+    }
 }
 
 pub fn step_simulation(
@@ -53,10 +70,6 @@ pub fn step_simulation_legacy(
     rigid_particles: &Query<&InstanceMaterialData, With<RigidParticlesTag>>,
     timings_channel: &TimestampChannel,
 ) {
-    if app_state.run_state == RunState::Paused {
-        return;
-    }
-
     let timings = &mut *timings;
 
     while let Ok(new_timings) = timings_channel.rcv.try_recv() {
@@ -105,7 +118,9 @@ pub fn step_simulation_legacy(
             let rb = &physics.rapier_data.bodies[coupling.body];
             GpuVelocity {
                 linear: *rb.linvel()
-                    + gravity * physics.rapier_data.params.dt * (rb.is_dynamic() as u32 as f32)
+                    + gravity
+                        * physics.rapier_data.integration_parameters.dt
+                        * (rb.is_dynamic() as u32 as f32)
                         / (app_state.num_substeps as f32),
                 #[allow(clippy::clone_on_copy)] // Needed for the 2d/3d switch.
                 angular: rb.angvel().clone(),
@@ -188,7 +203,7 @@ pub fn step_simulation_legacy(
                     next_position: new_poses[i].isometry,
                 };
                 let vel = interpolator.interpolate_velocity(
-                    1.0 / (physics.rapier_data.params.dt / divisor),
+                    1.0 / (physics.rapier_data.integration_parameters.dt / divisor),
                     &rb.mass_properties().local_mprops.local_com,
                 );
                 rb.set_linvel(vel.linvel, true);
@@ -198,12 +213,12 @@ pub fn step_simulation_legacy(
         }
     }
 
-    let mut params = physics.rapier_data.params;
+    let mut params = physics.rapier_data.integration_parameters;
     params.dt /= divisor;
     physics.rapier_data.physics_pipeline.step(
         &nalgebra::zero(),
         &params, // physics.rapier_data.params,
-        &mut physics.rapier_data.islands,
+        &mut physics.rapier_data.island_manager,
         &mut physics.rapier_data.broad_phase,
         &mut physics.rapier_data.narrow_phase,
         &mut physics.rapier_data.bodies,

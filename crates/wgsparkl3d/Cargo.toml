@@ -15,6 +15,9 @@ required-features = ["dim3"]
 [features]
 default = ["dim3"]
 dim3 = []
+load_gltf = ["obj-rs", "image"]
+load_obj = ["gltf", "image"]
+load_bevy = ["bevy", "image"]
 
 [dependencies]
 nalgebra = { workspace = true }
@@ -33,11 +36,24 @@ wgrapier3d = "0.2"
 # TODO: make rapier optional?
 rapier3d = "0.23"
 
+# for loaders
+# TODO: slim bevy features
+bevy = { version = "0.15.0", features = [
+    "shader_format_glsl",
+    "shader_format_spirv",
+    "webgpu",
+    "jpeg",
+], optional = true }
+gltf = { version = "1.3", features = [
+    "KHR_materials_pbrSpecularGlossiness",
+], optional = true }
+obj-rs = { version = "0.7", default-features = false, optional = true }
+image = { version = "0.25", optional = true }
+
+
 [dev-dependencies]
-nalgebra = { version = "0.33", features = ["rand"] }
 futures-test = "0.3"
 serial_test = "3"
-approx = "0.5"
-async-std = { version = "1", features = ["attributes"] }
-bevy = { version = "0.15.0", features = ["shader_format_glsl", "shader_format_spirv", "webgpu"] }
-wgsparkl_testbed3d = { path = "../wgsparkl-testbed3d" }
+
+[package.metadata.docs.rs]
+cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]

@@ -1,9 +1,8 @@
-use wgsparkl_testbed2d::{wgsparkl, RapierData};
+use wgsparkl2d::rapier::prelude::{ColliderBuilder, RigidBodyBuilder};
+use wgsparkl_testbed2d::{wgsparkl, Callbacks, RapierData};
 
-use bevy::prelude::*;
 use bevy::render::renderer::RenderDevice;
 use nalgebra::{vector, Vector2};
-use rapier2d::prelude::{ColliderBuilder, RigidBodyBuilder};
 use wgsparkl::models::DruckerPrager;
 use wgsparkl::{
     models::ElasticCoefficients,
@@ -13,16 +12,11 @@ use wgsparkl::{
 use wgsparkl2d::solver::ParticleDynamics;
 use wgsparkl_testbed2d::{AppState, PhysicsContext};
 
-#[allow(dead_code)]
-fn main() {
-    panic!("Run the `testbed3` example instead.");
-}
-
 pub fn sand_demo(
-    mut commands: Commands,
-    device: Res<RenderDevice>,
-    mut app_state: ResMut<AppState>,
-) {
+    device: RenderDevice,
+    app_state: &mut AppState,
+    _callbacks: &mut Callbacks,
+) -> PhysicsContext {
     let mut rapier_data = RapierData::default();
     let device = device.wgpu_device();
 
@@ -42,6 +36,7 @@ pub fn sand_demo(
                 model: ElasticCoefficients::from_young_modulus(10_000_000.0, 0.2),
                 plasticity: Some(DruckerPrager::new(10_000_000.0, 0.2)),
                 phase: None,
+                color: None,
             });
         }
     }
@@ -173,9 +168,9 @@ pub fn sand_demo(
         cell_width,
         60_000,
     );
-    commands.insert_resource(PhysicsContext {
+    PhysicsContext {
         data,
         rapier_data,
         particles,
-    });
+    }
 }
