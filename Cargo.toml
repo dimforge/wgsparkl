@@ -21,6 +21,22 @@ rust.unexpected_cfgs = { level = "warn", check-cfg = [
 ] }
 
 [patch.crates-io]
+#wgcore = { git = "https://github.com/dimforge/wgmath.git", rev = "6d17942bd841efdfcc696d8455b22be3a8ddfe8d" }
+#wgcore-derive = { git = "https://github.com/dimforge/wgmath.git", rev = "6d17942bd841efdfcc696d8455b22be3a8ddfe8d" }
+#wgebra = { git = "https://github.com/dimforge/wgmath.git", rev = "6d17942bd841efdfcc696d8455b22be3a8ddfe8d" }
+#wgparry3d = { git = "https://github.com/dimforge/wgmath.git", rev = "6d17942bd841efdfcc696d8455b22be3a8ddfe8d" }
+#wgparry2d = { git = "https://github.com/dimforge/wgmath.git", rev = "6d17942bd841efdfcc696d8455b22be3a8ddfe8d" }
+#wgrapier3d = { git = "https://github.com/dimforge/wgmath.git", rev = "6d17942bd841efdfcc696d8455b22be3a8ddfe8d" }
+#wgrapier2d = { git = "https://github.com/dimforge/wgmath.git", rev = "6d17942bd841efdfcc696d8455b22be3a8ddfe8d" }
+
+wgcore = { path = "../wgmath/crates/wgcore" }
+wgcore-derive = { path = "../wgmath/crates/wgcore-derive" }
+wgebra = { path = "../wgmath/crates/wgebra" }
+wgparry3d = { path = "../wgmath/crates/wgparry/crates/wgparry3d" }
+wgparry2d = { path = "../wgmath/crates/wgparry/crates/wgparry2d" }
+wgrapier3d = { path = "../wgmath/crates/wgrapier/crates/wgrapier3d" }
+wgrapier2d = { path = "../wgmath/crates/wgrapier/crates/wgrapier2d" }
+
 parry2d = { git = "https://github.com/dimforge/parry.git", rev = "407fb449504dde7ba0a3d80a8de7e37ac991a77a" }
 parry3d = { git = "https://github.com/dimforge/parry.git", rev = "407fb449504dde7ba0a3d80a8de7e37ac991a77a" }
 encase = { git = "https://github.com/sebcrozet/encase.git", rev = "6755c1414c225cbeac9fde1ff9394b70d3b05404" }

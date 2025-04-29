@@ -163,9 +163,9 @@ fn particle_g2p(particle_id: u32, cell_width: f32, dt: f32) {
         particle_affinity |= cell_data.affinities & Grid::AFFINITY_BITS_MASK;
 
 #if DIM == 2
-        let weight = w.x[shift.x] * w.y[shift.y];
+        let weight = w[0][shift.x] * w[1][shift.y];
 #else
-        let weight = w.x[shift.x] * w.y[shift.y] * w.z[shift.z];
+        let weight = w[0][shift.x] * w[1][shift.y] * w[2][shift.z];
 #endif
 
         for (var i_collider = 0u; i_collider < 16u; i_collider += 1u) {
@@ -203,10 +203,10 @@ fn particle_g2p(particle_id: u32, cell_width: f32, dt: f32) {
         var cell_data = shared_nodes[packed_cell_index_in_block + packed_shift];
 #if DIM == 2
         let dpt = ref_elt_pos_minus_particle_pos + vec2<f32>(shift) * cell_width;
-        let weight = w.x[shift.x] * w.y[shift.y];
+        let weight = w[0][shift.x] * w[1][shift.y];
 #else
         let dpt = ref_elt_pos_minus_particle_pos + vec3<f32>(shift) * cell_width;
-        let weight = w.x[shift.x] * w.y[shift.y] * w.z[shift.z];
+        let weight = w[0][shift.x] * w[1][shift.y] * w[2][shift.z];
 #endif
         let combined_affinity = cell_data.affinities & particle_affinity & Grid::AFFINITY_BITS_MASK;
         let sign_differences = ((cell_data.affinities >> Grid::SIGN_BITS_SHIFT)

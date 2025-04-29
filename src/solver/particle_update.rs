@@ -6,10 +6,10 @@ use crate::models::{GpuModels, WgDruckerPrager, WgLinearElasticity, WgNeoHookean
 use crate::solver::params::{GpuSimulationParams, WgParams};
 use crate::solver::GpuParticles;
 use crate::solver::WgParticle;
-use wgcore::kernel::{KernelInvocationBuilder, KernelInvocationQueue};
+use wgcore::kernel::KernelDispatch;
 use wgcore::Shader;
 use wgparry::substitute_aliases;
-use wgpu::ComputePipeline;
+use wgpu::{ComputePass, ComputePipeline, Device};
 use wgrapier::dynamics::GpuBodySet;
 
 #[derive(Shader)]
@@ -40,16 +40,17 @@ pub struct ParticlePhase {
 }
 
 impl WgParticleUpdate {
-    pub fn queue<'a>(
+    pub fn dispatch<'a>(
         &'a self,
-        queue: &mut KernelInvocationQueue<'a>,
+        device: &Device,
+        pass: &mut ComputePass,
         sim_params: &GpuSimulationParams,
         grid: &GpuGrid,
         particles: &GpuParticles,
         models: &GpuModels,
         _bodies: &GpuBodySet,
     ) {
-        KernelInvocationBuilder::new(queue, &self.main)
+        KernelDispatch::new(device, pass, &self.main)
             .bind(0, [grid.meta.buffer()])
             .bind(
                 1,
@@ -64,7 +65,7 @@ impl WgParticleUpdate {
                 ],
             )
             // .bind(2, [bodies.shapes().buffer(), bodies.poses().buffer()])
-            .queue(particles.positions.len().div_ceil(64) as u32);
+            .dispatch(particles.positions.len().div_ceil(64) as u32);
     }
 }
 

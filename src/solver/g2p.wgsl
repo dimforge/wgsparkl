@@ -207,11 +207,11 @@ fn particle_g2p(particle_id: u32, cell_width: f32, dt: f32) {
             }
 
 #if DIM == 2
-            let weight = w.x[shift.x] * w.y[shift.y];
+            let weight = w[0][shift.x] * w[1][shift.y];
             momentum_velocity_mass += cpic_cell_data * weight;
             velocity_gradient += (weight * inv_d) * outer_product(cpic_cell_data.xy, dpt);
 #else
-            let weight = w.x[shift.x] * w.y[shift.y] * w.z[shift.z];
+            let weight = w[0][shift.x] * w[1][shift.y] * w[2][shift.z];
             momentum_velocity_mass += cpic_cell_data * weight;
             velocity_gradient += (weight * inv_d) * outer_product(cpic_cell_data.xyz, dpt);
 #endif

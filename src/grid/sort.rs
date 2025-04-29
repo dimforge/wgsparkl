@@ -1,9 +1,9 @@
 use crate::dim_shader_defs;
 use crate::grid::grid::{GpuGrid, WgGrid};
 use crate::solver::{GpuRigidParticles, WgParticle};
-use wgcore::kernel::{KernelInvocationBuilder, KernelInvocationQueue};
+use wgcore::kernel::KernelDispatch;
 use wgcore::Shader;
-use wgpu::ComputePipeline;
+use wgpu::{ComputePass, ComputePipeline, Device};
 
 #[derive(Shader)]
 #[shader(
@@ -25,15 +25,16 @@ pub struct WgSort {
 }
 
 impl WgSort {
-    pub fn queue_sort_rigid_particles<'a>(
+    pub fn dispatch_sort_rigid_particles<'a>(
         &'a self,
+        device: &Device,
+        pass: &mut ComputePass,
         particles: &GpuRigidParticles,
         grid: &GpuGrid,
-        queue: &mut KernelInvocationQueue<'a>,
     ) {
         const GRID_WORKGROUP_SIZE: u32 = 64;
         let n_groups = (particles.len() as u32).div_ceil(GRID_WORKGROUP_SIZE);
-        KernelInvocationBuilder::new(queue, &self.sort_rigid_particles)
+        KernelDispatch::new(device, pass, &self.sort_rigid_particles)
             .bind_at(
                 0,
                 [
@@ -49,7 +50,7 @@ impl WgSort {
                     (particles.node_linked_lists.buffer(), 5),
                 ],
             )
-            .queue(n_groups);
+            .dispatch(n_groups);
     }
 }
 

@@ -4,9 +4,9 @@ use crate::solver::params::{GpuSimulationParams, WgParams};
 use crate::solver::GpuParticles;
 use crate::solver::WgParticle;
 use crate::{dim_shader_defs, substitute_aliases};
-use wgcore::kernel::{KernelInvocationBuilder, KernelInvocationQueue};
+use wgcore::kernel::KernelDispatch;
 use wgcore::Shader;
-use wgpu::ComputePipeline;
+use wgpu::{ComputePass, ComputePipeline, Device};
 use wgrapier::dynamics::{GpuBodySet, WgBody};
 
 #[derive(Shader)]
@@ -21,15 +21,16 @@ pub struct WgG2P {
 }
 
 impl WgG2P {
-    pub fn queue<'a>(
+    pub fn dispatch<'a>(
         &'a self,
-        queue: &mut KernelInvocationQueue<'a>,
+        device: &Device,
+        pass: &mut ComputePass,
         sim_params: &GpuSimulationParams,
         grid: &GpuGrid,
         particles: &GpuParticles,
         bodies: &GpuBodySet,
     ) {
-        KernelInvocationBuilder::new(queue, &self.g2p)
+        KernelDispatch::new(device, pass, &self.g2p)
             .bind_at(
                 0,
                 [
@@ -49,7 +50,7 @@ impl WgG2P {
                 ],
             )
             .bind(2, [bodies.vels().buffer(), bodies.mprops().buffer()])
-            .queue_indirect(grid.indirect_n_g2p_p2g_groups.clone());
+            .dispatch_indirect(&grid.indirect_n_g2p_p2g_groups);
     }
 }
 

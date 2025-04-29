@@ -1,9 +1,9 @@
 use crate::dim_shader_defs;
 use crate::grid::grid::{GpuGrid, WgGrid};
 use crate::solver::params::GpuSimulationParams;
-use wgcore::kernel::{KernelInvocationBuilder, KernelInvocationQueue};
+use wgcore::kernel::KernelDispatch;
 use wgcore::Shader;
-use wgpu::ComputePipeline;
+use wgpu::{ComputePass, ComputePipeline, Device};
 
 #[derive(Shader)]
 #[shader(
@@ -16,13 +16,14 @@ pub struct WgGridUpdate {
 }
 
 impl WgGridUpdate {
-    pub fn queue<'a>(
+    pub fn dispatch<'a>(
         &'a self,
-        queue: &mut KernelInvocationQueue<'a>,
+        device: &Device,
+        pass: &mut ComputePass,
         sim_params: &GpuSimulationParams,
         grid: &GpuGrid,
     ) {
-        KernelInvocationBuilder::new(queue, &self.grid_update)
+        KernelDispatch::new(device, pass, &self.grid_update)
             .bind_at(
                 0,
                 [
@@ -32,7 +33,7 @@ impl WgGridUpdate {
                     (sim_params.params.buffer(), 4),
                 ],
             )
-            .queue_indirect(grid.indirect_n_g2p_p2g_groups.clone());
+            .dispatch_indirect(&grid.indirect_n_g2p_p2g_groups);
     }
 }
 

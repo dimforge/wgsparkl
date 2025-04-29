@@ -3,11 +3,13 @@ use crate::grid::sort::WgSort;
 use crate::solver::{GpuParticles, GpuRigidParticles, WgParams};
 use crate::{dim_shader_defs, substitute_aliases};
 use std::sync::Arc;
-use wgcore::kernel::{KernelInvocationBuilder, KernelInvocationQueue};
+use wgcore::kernel::KernelDispatch;
 use wgcore::tensor::{GpuScalar, GpuVector};
 use wgcore::Shader;
 use wgpu::util::DispatchIndirectArgs;
-use wgpu::{Buffer, BufferAddress, BufferDescriptor, BufferUsages, ComputePipeline, Device};
+use wgpu::{
+    Buffer, BufferAddress, BufferDescriptor, BufferUsages, ComputePass, ComputePipeline, Device,
+};
 
 #[cfg(target_os = "macos")]
 use crate::grid::sort::TouchParticleBlocks;
@@ -27,8 +29,10 @@ pub struct WgGrid {
 
 impl WgGrid {
     // Returns the pair (number of active blocks, number of GPU dispatch blocks needed to cover all the particles).
-    pub fn queue_sort<'a>(
+    pub fn dispatch_sort<'a>(
         &'a self,
+        device: &Device,
+        pass: &mut ComputePass,
         particles: &GpuParticles,
         rigid_particles: &GpuRigidParticles,
         grid: &GpuGrid,
@@ -36,7 +40,6 @@ impl WgGrid {
         sort_module: &'a WgSort,
         #[cfg(target_os = "macos")] touch_particle_blocks: &'a TouchParticleBlocks,
         prefix_sum_module: &'a WgPrefixSum,
-        queue: &mut KernelInvocationQueue<'a>,
     ) {
         const GRID_WORKGROUP_SIZE: u32 = 64;
 
@@ -50,16 +53,16 @@ impl WgGrid {
             // - Update the hashmap & grid buffer sizes if its occupancy is to high.
 
             // NOTE: num_active_blocks := 0 is set in reset_hmap.
-            KernelInvocationBuilder::new(queue, &self.reset_hmap)
+            KernelDispatch::new(device, pass, &self.reset_hmap)
                 .bind0([grid.meta.buffer(), grid.hmap_entries.buffer()])
-                .queue(grid.cpu_meta.hmap_capacity.div_ceil(GRID_WORKGROUP_SIZE));
+                .dispatch(grid.cpu_meta.hmap_capacity.div_ceil(GRID_WORKGROUP_SIZE));
 
             #[cfg(not(target_os = "macos"))]
             let touch_particle_blocks_pipeline = &sort_module.touch_particle_blocks;
             #[cfg(target_os = "macos")]
             let touch_particle_blocks_pipeline = &touch_particle_blocks.touch_particle_blocks;
 
-            KernelInvocationBuilder::new(queue, touch_particle_blocks_pipeline)
+            KernelDispatch::new(device, pass, touch_particle_blocks_pipeline)
                 .bind_at(
                     0,
                     [
@@ -70,31 +73,35 @@ impl WgGrid {
                     ],
                 )
                 .bind(1, [particles.positions.buffer()])
-                .queue((particles.len() as u32).div_ceil(GRID_WORKGROUP_SIZE));
+                .dispatch((particles.len() as u32).div_ceil(GRID_WORKGROUP_SIZE));
 
             // Ensure blocks exist wherever we have rigid particles that might affect
             // other blocks. This is done in two passes:
             // 1. Mark all rigid particles that need to ensure it’s associated block exists
             // 2. Touch the blocks with marked rigid particles.
-            KernelInvocationBuilder::new(queue, &sort_module.mark_rigid_particles_needing_block)
-                .bind_at(
-                    0,
-                    [(grid.meta.buffer(), 0), (grid.hmap_entries.buffer(), 1)],
-                )
-                .bind_at(
-                    1,
-                    [
-                        (rigid_particles.sample_points.buffer(), 0),
-                        (rigid_particles.rigid_particle_needs_block.buffer(), 6),
-                    ],
-                )
-                .queue((rigid_particles.len() as u32).div_ceil(GRID_WORKGROUP_SIZE));
+            KernelDispatch::new(
+                device,
+                pass,
+                &sort_module.mark_rigid_particles_needing_block,
+            )
+            .bind_at(
+                0,
+                [(grid.meta.buffer(), 0), (grid.hmap_entries.buffer(), 1)],
+            )
+            .bind_at(
+                1,
+                [
+                    (rigid_particles.sample_points.buffer(), 0),
+                    (rigid_particles.rigid_particle_needs_block.buffer(), 6),
+                ],
+            )
+            .dispatch((rigid_particles.len() as u32).div_ceil(GRID_WORKGROUP_SIZE));
 
             #[cfg(not(target_os = "macos"))]
             let touch_rigid_particle_blocks = &sort_module.touch_rigid_particle_blocks;
             #[cfg(target_os = "macos")]
             let touch_rigid_particle_blocks = &touch_particle_blocks.touch_rigid_particle_blocks;
-            KernelInvocationBuilder::new(queue, touch_rigid_particle_blocks)
+            KernelDispatch::new(device, pass, touch_rigid_particle_blocks)
                 .bind_at(
                     0,
                     [
@@ -111,7 +118,7 @@ impl WgGrid {
                         (rigid_particles.rigid_particle_needs_block.buffer(), 6),
                     ],
                 )
-                .queue((rigid_particles.len() as u32).div_ceil(GRID_WORKGROUP_SIZE));
+                .dispatch((rigid_particles.len() as u32).div_ceil(GRID_WORKGROUP_SIZE));
 
             // TODO: handle grid buffer resizing
             sparse_grid_has_the_correct_size = true;
@@ -126,7 +133,7 @@ impl WgGrid {
         // - Launch cumulated sum
 
         // Prepare workgroups for indirect dispatches based on the number of active blocks.
-        KernelInvocationBuilder::new(queue, &self.init_indirect_workgroups)
+        KernelDispatch::new(device, pass, &self.init_indirect_workgroups)
             .bind_at(
                 0,
                 [
@@ -135,12 +142,12 @@ impl WgGrid {
                     (&*grid.indirect_n_g2p_p2g_groups, 7),
                 ],
             )
-            .queue(1);
+            .dispatch(1);
 
         let n_groups = (particles.len() as u32).div_ceil(GRID_WORKGROUP_SIZE);
         let n_block_groups = grid.indirect_n_blocks_groups.clone();
 
-        KernelInvocationBuilder::new(queue, &sort_module.update_block_particle_count)
+        KernelDispatch::new(device, pass, &sort_module.update_block_particle_count)
             .bind(
                 0,
                 [
@@ -150,29 +157,33 @@ impl WgGrid {
                 ],
             )
             .bind(1, [particles.positions.buffer()])
-            .queue(n_groups);
+            .dispatch(n_groups);
 
-        KernelInvocationBuilder::new(queue, &sort_module.copy_particles_len_to_scan_value)
+        KernelDispatch::new(device, pass, &sort_module.copy_particles_len_to_scan_value)
             .bind_at(
                 0,
                 [(grid.meta.buffer(), 0), (grid.active_blocks.buffer(), 2)],
             )
             .bind_at(1, [(grid.scan_values.buffer(), 1)])
-            .queue_indirect(n_block_groups.clone());
+            .dispatch_indirect(&n_block_groups);
 
-        prefix_sum_module.queue(queue, prefix_sum, &grid.scan_values);
+        prefix_sum_module.dispatch(device, pass, prefix_sum, &grid.scan_values);
 
-        KernelInvocationBuilder::new(queue, &sort_module.copy_scan_values_to_first_particles)
-            .bind_at(
-                0,
-                [(grid.meta.buffer(), 0), (grid.active_blocks.buffer(), 2)],
-            )
-            .bind_at(1, [(grid.scan_values.buffer(), 1)])
-            .queue_indirect(n_block_groups.clone());
+        KernelDispatch::new(
+            device,
+            pass,
+            &sort_module.copy_scan_values_to_first_particles,
+        )
+        .bind_at(
+            0,
+            [(grid.meta.buffer(), 0), (grid.active_blocks.buffer(), 2)],
+        )
+        .bind_at(1, [(grid.scan_values.buffer(), 1)])
+        .dispatch_indirect(&n_block_groups);
 
         // Reset here so the linked list heads get reset before `finalize_particles_sort` which
         // also setups the per-node linked list.
-        KernelInvocationBuilder::new(queue, &self.reset)
+        KernelDispatch::new(device, pass, &self.reset)
             .bind_at(
                 0,
                 [
@@ -182,9 +193,9 @@ impl WgGrid {
                     (grid.nodes_rigid_linked_lists.buffer(), 10),
                 ],
             )
-            .queue_indirect(n_block_groups.clone());
+            .dispatch_indirect(&n_block_groups);
 
-        KernelInvocationBuilder::new(queue, &sort_module.finalize_particles_sort)
+        KernelDispatch::new(device, pass, &sort_module.finalize_particles_sort)
             .bind_at(
                 0,
                 [
@@ -202,7 +213,7 @@ impl WgGrid {
                     particles.node_linked_lists.buffer(),
                 ],
             )
-            .queue(n_groups);
+            .dispatch(n_groups);
     }
 }
 
@@ -378,7 +389,7 @@ mod test {
             crate::grid::sort::TouchParticleBlocks::from_device(gpu.device());
         let rigid_particles = GpuRigidParticles::new(gpu.device());
 
-        grid_module.queue_sort(
+        grid_module.dispatch_sort(
             &particles,
             &rigid_particles,
             &grid,

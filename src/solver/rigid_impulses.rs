@@ -3,12 +3,12 @@ use crate::grid::grid::{GpuGrid, WgGrid};
 use crate::solver::params::{GpuSimulationParams, WgParams};
 use encase::ShaderType;
 use rapier::math::{AngVector, Point, Vector};
-use wgcore::kernel::{KernelInvocationBuilder, KernelInvocationQueue};
+use wgcore::kernel::KernelDispatch;
 use wgcore::tensor::GpuVector;
 use wgcore::Shader;
 use wgebra::{WgSim2, WgSim3};
 use wgparry::substitute_aliases;
-use wgpu::{BufferUsages, ComputePipeline};
+use wgpu::{BufferUsages, ComputePass, ComputePipeline, Device};
 use wgrapier::dynamics::{GpuBodySet, WgBody};
 
 #[derive(Shader)]
@@ -58,15 +58,16 @@ impl GpuImpulses {
 }
 
 impl WgRigidImpulses {
-    pub fn queue<'a>(
+    pub fn dispatch<'a>(
         &'a self,
-        queue: &mut KernelInvocationQueue<'a>,
+        device: &Device,
+        pass: &mut ComputePass,
         grid: &GpuGrid,
         sim_params: &GpuSimulationParams,
         impulses: &GpuImpulses,
         bodies: &GpuBodySet,
     ) {
-        KernelInvocationBuilder::new(queue, &self.update)
+        KernelDispatch::new(device, pass, &self.update)
             .bind0([
                 grid.meta.buffer(),
                 impulses.incremental_impulses.buffer(),
@@ -76,16 +77,17 @@ impl WgRigidImpulses {
                 bodies.poses().buffer(),
                 sim_params.params.buffer(),
             ])
-            .queue(1);
+            .dispatch(1);
     }
 
-    pub fn queue_update_world_mass_properties<'a>(
+    pub fn dispatch_update_world_mass_properties<'a>(
         &'a self,
-        queue: &mut KernelInvocationQueue<'a>,
+        device: &Device,
+        pass: &mut ComputePass,
         impulses: &GpuImpulses,
         bodies: &GpuBodySet,
     ) {
-        KernelInvocationBuilder::new(queue, &self.update_world_mass_properties)
+        KernelDispatch::new(device, pass, &self.update_world_mass_properties)
             .bind_at(
                 0,
                 [
@@ -95,7 +97,7 @@ impl WgRigidImpulses {
                     (bodies.poses().buffer(), 5),
                 ],
             )
-            .queue(1);
+            .dispatch(1);
     }
 }
 

@@ -5,7 +5,7 @@ use async_channel::{Receiver, Sender};
 use bevy::prelude::*;
 use bevy::render::renderer::{RenderDevice, RenderQueue};
 use bevy::tasks::ComputeTaskPool;
-use wgcore::kernel::KernelInvocationQueue;
+use wgcore::kernel::CommandEncoderExt;
 use wgcore::re_exports::encase::StorageBuffer;
 use wgcore::timestamps::GpuTimestamps;
 use wgsparkl::rapier::math::Vector;
@@ -71,7 +71,6 @@ pub fn step_simulation_legacy(
     let device = render_device.wgpu_device();
     let physics = &mut *physics;
     let compute_queue = &*render_queue.0;
-    let mut queue = KernelInvocationQueue::new(device);
     let mut encoder = device.create_command_encoder(&Default::default());
 
     // Send updated bodies information to the gpu.
@@ -119,13 +118,15 @@ pub fn step_simulation_legacy(
     compute_queue.write_buffer(physics.data.bodies.vels().buffer(), 0, &vels_bytes);
 
     //// Step the simulation.
-    app_state
-        .pipeline
-        .queue_step(&mut physics.data, &mut queue, timings.timestamps.is_some());
-
     for _ in 0..app_state.num_substeps {
-        queue.encode(&mut encoder, timings.timestamps.as_mut());
+        app_state.pipeline.dispatch_step(
+            device,
+            &mut encoder,
+            &mut physics.data,
+            timings.timestamps.as_mut(),
+        );
     }
+
     physics
         .data
         .poses_staging
@@ -147,22 +148,19 @@ pub fn step_simulation_legacy(
     }
 
     // Prepare the vertex buffer for rendering the particles.
-    if let Ok(instances_buffer) = particles.get_single() {
-        queue.clear();
-        app_state.prep_vertex_buffer.queue(
-            &mut queue,
+    if let Ok(instances_buffer) = particles.single() {
+        let mut pass = encoder.compute_pass("prep_vertex_buffer", timings.timestamps.as_mut());
+        app_state.prep_vertex_buffer.dispatch(
+            device,
+            &mut pass,
             &app_state.gpu_render_config,
             &physics.data.particles,
             &physics.data.rigid_particles,
             &physics.data.grid,
             &physics.data.sim_params,
             &instances_buffer.buffer.buffer,
-            rigid_particles
-                .get_single()
-                .ok()
-                .map(|b| &**b.buffer.buffer),
+            rigid_particles.single().ok().map(|b| &**b.buffer.buffer),
         );
-        queue.encode(&mut encoder, timings.timestamps.as_mut());
     }
 
     // Submit.

@@ -13,11 +13,12 @@ use naga_oil::compose::ComposerError;
 use rapier::dynamics::RigidBodySet;
 use rapier::geometry::ColliderSet;
 use wgcore::hot_reloading::HotReloadState;
-use wgcore::kernel::KernelInvocationQueue;
+use wgcore::kernel::CommandEncoderExt;
 use wgcore::tensor::GpuVector;
+use wgcore::timestamps::GpuTimestamps;
 use wgcore::Shader;
 use wgparry::math::GpuSim;
-use wgpu::{BufferUsages, Device};
+use wgpu::{BufferUsages, CommandEncoder, Device};
 use wgrapier::dynamics::body::{BodyCoupling, BodyCouplingEntry};
 use wgrapier::dynamics::{GpuBodySet, WgIntegrate};
 
@@ -192,92 +193,135 @@ impl MpmPipeline {
         })
     }
 
-    pub fn queue_step<'a>(
+    pub fn dispatch_step<'a>(
         &'a self,
+        device: &Device,
+        encoder: &mut CommandEncoder,
         data: &mut MpmData,
-        queue: &mut KernelInvocationQueue<'a>,
-        add_timestamps: bool,
+        mut timestamps: Option<&mut GpuTimestamps>,
     ) {
-        queue.compute_pass("update rigid particles", add_timestamps);
+        {
+            let mut pass =
+                encoder.compute_pass("update rigid particles", timestamps.as_deref_mut());
+            self.impulses.dispatch_update_world_mass_properties(
+                device,
+                &mut pass,
+                &data.impulses,
+                &data.bodies,
+            );
+            self.rigid_particles_update.dispatch(
+                device,
+                &mut pass,
+                &data.bodies,
+                &data.rigid_particles,
+            );
+        }
 
-        self.impulses
-            .queue_update_world_mass_properties(queue, &data.impulses, &data.bodies);
-        self.rigid_particles_update
-            .queue(queue, &data.bodies, &data.rigid_particles);
+        {
+            let mut pass = encoder.compute_pass("grid sort", timestamps.as_deref_mut());
+            self.grid.dispatch_sort(
+                device,
+                &mut pass,
+                &data.particles,
+                &data.rigid_particles,
+                &data.grid,
+                &mut data.prefix_sum,
+                &self.sort,
+                #[cfg(target_os = "macos")]
+                &self.touch_particle_blocks,
+                &self.prefix_sum,
+            );
+            self.sort.dispatch_sort_rigid_particles(
+                device,
+                &mut pass,
+                &data.rigid_particles,
+                &data.grid,
+            );
+        }
 
-        queue.compute_pass("grid sort", add_timestamps);
-        self.grid.queue_sort(
-            &data.particles,
-            &data.rigid_particles,
-            &data.grid,
-            &mut data.prefix_sum,
-            &self.sort,
-            #[cfg(target_os = "macos")]
-            &self.touch_particle_blocks,
-            &self.prefix_sum,
-            queue,
-        );
-        self.sort
-            .queue_sort_rigid_particles(&data.rigid_particles, &data.grid, queue);
+        {
+            let mut pass = encoder.compute_pass("grid_update_cdf", timestamps.as_deref_mut());
+            self.grid_update_cdf
+                .dispatch(device, &mut pass, &data.grid, &data.bodies);
+        }
 
-        queue.compute_pass("grid_update_cdf", add_timestamps);
+        {
+            let mut pass = encoder.compute_pass("p2g_cdf", timestamps.as_deref_mut());
+            self.p2g_cdf.dispatch(
+                device,
+                &mut pass,
+                &data.grid,
+                &data.rigid_particles,
+                &data.bodies,
+            );
+        }
 
-        self.grid_update_cdf.queue(queue, &data.grid, &data.bodies);
+        {
+            let mut pass = encoder.compute_pass("g2p_cdf", timestamps.as_deref_mut());
+            self.g2p_cdf.dispatch(
+                device,
+                &mut pass,
+                &data.sim_params,
+                &data.grid,
+                &data.particles,
+            );
+        }
 
-        queue.compute_pass("p2g_cdf", add_timestamps);
+        {
+            let mut pass = encoder.compute_pass("p2g", timestamps.as_deref_mut());
+            self.p2g.dispatch(
+                device,
+                &mut pass,
+                &data.grid,
+                &data.particles,
+                &data.impulses,
+                &data.bodies,
+            );
+        }
 
-        self.p2g_cdf
-            .queue(queue, &data.grid, &data.rigid_particles, &data.bodies);
+        {
+            let mut pass = encoder.compute_pass("grid_update", timestamps.as_deref_mut());
+            self.grid_update
+                .dispatch(device, &mut pass, &data.sim_params, &data.grid);
+        }
 
-        queue.compute_pass("g2p_cdf", add_timestamps);
+        {
+            let mut pass = encoder.compute_pass("g2p", timestamps.as_deref_mut());
+            self.g2p.dispatch(
+                device,
+                &mut pass,
+                &data.sim_params,
+                &data.grid,
+                &data.particles,
+                &data.bodies,
+            );
+        }
 
-        self.g2p_cdf
-            .queue(queue, &data.sim_params, &data.grid, &data.particles);
+        {
+            let mut pass = encoder.compute_pass("particles_update", timestamps.as_deref_mut());
+            self.particles_update.dispatch(
+                device,
+                &mut pass,
+                &data.sim_params,
+                &data.grid,
+                &data.particles,
+                &data.models,
+                &data.bodies,
+            );
+        }
 
-        queue.compute_pass("p2g", add_timestamps);
-        self.p2g.queue(
-            queue,
-            &data.grid,
-            &data.particles,
-            &data.impulses,
-            &data.bodies,
-        );
-
-        queue.compute_pass("grid_update", add_timestamps);
-
-        self.grid_update.queue(queue, &data.sim_params, &data.grid);
-
-        queue.compute_pass("g2p", add_timestamps);
-
-        self.g2p.queue(
-            queue,
-            &data.sim_params,
-            &data.grid,
-            &data.particles,
-            &data.bodies,
-        );
-
-        queue.compute_pass("particles_update", add_timestamps);
-
-        self.particles_update.queue(
-            queue,
-            &data.sim_params,
-            &data.grid,
-            &data.particles,
-            &data.models,
-            &data.bodies,
-        );
-
-        queue.compute_pass("integrate_bodies", add_timestamps);
-
-        // TODO: should this be in a separate pipeline? Within wgrapier probably?
-        self.impulses.queue(
-            queue,
-            &data.grid,
-            &data.sim_params,
-            &data.impulses,
-            &data.bodies,
-        );
+        {
+            let mut pass = encoder.compute_pass("integrate_bodies", timestamps.as_deref_mut());
+            // TODO: should this be in a separate pipeline? Within wgrapier probably?
+            self.impulses.dispatch(
+                device,
+                &mut pass,
+                &data.grid,
+                &data.sim_params,
+                &data.impulses,
+                &data.bodies,
+            );
+        }
     }
 }
 

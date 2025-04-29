@@ -6,9 +6,9 @@ use crate::solver::params::WgParams;
 use crate::solver::{GpuImpulses, GpuParticles};
 use crate::solver::{WgParticle, WgRigidImpulses};
 use crate::substitute_aliases;
-use wgcore::kernel::{KernelInvocationBuilder, KernelInvocationQueue};
+use wgcore::kernel::KernelDispatch;
 use wgcore::Shader;
-use wgpu::ComputePipeline;
+use wgpu::{ComputePass, ComputePipeline, Device};
 use wgrapier::dynamics::{GpuBodySet, WgBody};
 
 #[derive(Shader)]
@@ -31,15 +31,16 @@ pub struct WgP2G {
 }
 
 impl WgP2G {
-    pub fn queue<'a>(
+    pub fn dispatch<'a>(
         &'a self,
-        queue: &mut KernelInvocationQueue<'a>,
+        device: &Device,
+        pass: &mut ComputePass,
         grid: &GpuGrid,
         particles: &GpuParticles,
         impulses: &GpuImpulses,
         bodies: &GpuBodySet,
     ) {
-        KernelInvocationBuilder::new(queue, &self.p2g)
+        KernelDispatch::new(device, pass, &self.p2g)
             .bind_at(
                 0,
                 [
@@ -65,7 +66,7 @@ impl WgP2G {
                     impulses.incremental_impulses.buffer(),
                 ],
             )
-            .queue_indirect(grid.indirect_n_g2p_p2g_groups.clone());
+            .dispatch_indirect(&grid.indirect_n_g2p_p2g_groups);
     }
 }
 

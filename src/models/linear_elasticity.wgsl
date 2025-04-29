@@ -19,8 +19,8 @@ fn kirchoff_stress(model: ElasticCoefficients, deformation_gradient: mat2x2<f32>
 
     let diag = model.lambda * (j - 1.0) * j;
     var result = (Svd2::recompose(svd) * transpose(deformation_gradient)) * (2.0 * model.mu);
-    result.x.x += diag;
-    result.y.y += diag;
+    result[0].x += diag;
+    result[1].y += diag;
 
     return result;
 }
@@ -33,9 +33,9 @@ fn kirchoff_stress(model: ElasticCoefficients, deformation_gradient: mat3x3<f32>
 
     let diag = model.lambda * (j - 1.0) * j;
     var result = (Svd3::recompose(svd) * transpose(deformation_gradient)) * (2.0 * model.mu);
-    result.x.x += diag;
-    result.y.y += diag;
-    result.z.z += diag;
+    result[0].x += diag;
+    result[1].y += diag;
+    result[2].z += diag;
 
     return result;
 }

@@ -5,11 +5,11 @@ use crate::solver::params::WgParams;
 use crate::solver::GpuRigidParticles;
 use crate::solver::WgParticle;
 use crate::substitute_aliases;
-use wgcore::kernel::{KernelInvocationBuilder, KernelInvocationQueue};
+use wgcore::kernel::KernelDispatch;
 use wgcore::Shader;
 use wgparry::segment::WgSegment;
 use wgparry::triangle::WgTriangle;
-use wgpu::ComputePipeline;
+use wgpu::{ComputePass, ComputePipeline, Device};
 use wgrapier::dynamics::{GpuBodySet, WgBody};
 
 #[derive(Shader)]
@@ -24,14 +24,15 @@ pub struct WgP2GCdf {
 }
 
 impl WgP2GCdf {
-    pub fn queue<'a>(
+    pub fn dispatch<'a>(
         &'a self,
-        queue: &mut KernelInvocationQueue<'a>,
+        device: &Device,
+        pass: &mut ComputePass,
         grid: &GpuGrid,
         particles: &GpuRigidParticles,
         bodies: &GpuBodySet,
     ) {
-        KernelInvocationBuilder::new(queue, &self.p2g_cdf)
+        KernelDispatch::new(device, pass, &self.p2g_cdf)
             .bind_at(
                 0,
                 [
@@ -50,7 +51,7 @@ impl WgP2GCdf {
                     bodies.shapes_vertex_buffers().buffer(),
                 ],
             )
-            .queue_indirect(grid.indirect_n_g2p_p2g_groups.clone());
+            .dispatch_indirect(&grid.indirect_n_g2p_p2g_groups);
     }
 }
 

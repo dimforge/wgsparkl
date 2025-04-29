@@ -1,9 +1,9 @@
 use crate::collision::WgCollide;
 use crate::dim_shader_defs;
 use crate::grid::grid::{GpuGrid, WgGrid};
-use wgcore::kernel::{KernelInvocationBuilder, KernelInvocationQueue};
+use wgcore::kernel::KernelDispatch;
 use wgcore::Shader;
-use wgpu::ComputePipeline;
+use wgpu::{ComputePass, ComputePipeline, Device};
 use wgrapier::dynamics::GpuBodySet;
 
 #[derive(Shader)]
@@ -17,13 +17,14 @@ pub struct WgGridUpdateCdf {
 }
 
 impl WgGridUpdateCdf {
-    pub fn queue<'a>(
+    pub fn dispatch<'a>(
         &'a self,
-        queue: &mut KernelInvocationQueue<'a>,
+        device: &Device,
+        pass: &mut ComputePass,
         grid: &GpuGrid,
         bodies: &GpuBodySet,
     ) {
-        KernelInvocationBuilder::new(queue, &self.grid_update)
+        KernelDispatch::new(device, pass, &self.grid_update)
             .bind_at(
                 0,
                 [
@@ -42,7 +43,7 @@ impl WgGridUpdateCdf {
                     // bodies.mprops().buffer(),
                 ],
             )
-            .queue_indirect(grid.indirect_n_g2p_p2g_groups.clone());
+            .dispatch_indirect(&grid.indirect_n_g2p_p2g_groups);
     }
 }
 

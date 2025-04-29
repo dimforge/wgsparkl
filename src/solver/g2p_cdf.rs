@@ -4,10 +4,10 @@ use crate::solver::params::{GpuSimulationParams, WgParams};
 use crate::solver::GpuParticles;
 use crate::solver::WgParticle;
 use crate::{dim_shader_defs, substitute_aliases};
-use wgcore::kernel::{KernelInvocationBuilder, KernelInvocationQueue};
+use wgcore::kernel::KernelDispatch;
 use wgcore::Shader;
 use wgebra::WgInv;
-use wgpu::ComputePipeline;
+use wgpu::{ComputePass, ComputePipeline, Device};
 
 #[derive(Shader)]
 #[shader(
@@ -21,14 +21,15 @@ pub struct WgG2PCdf {
 }
 
 impl WgG2PCdf {
-    pub fn queue<'a>(
+    pub fn dispatch<'a>(
         &'a self,
-        queue: &mut KernelInvocationQueue<'a>,
+        device: &Device,
+        pass: &mut ComputePass,
         sim_params: &GpuSimulationParams,
         grid: &GpuGrid,
         particles: &GpuParticles,
     ) {
-        KernelInvocationBuilder::new(queue, &self.g2p_cdf)
+        KernelDispatch::new(device, pass, &self.g2p_cdf)
             .bind_at(
                 0,
                 [
@@ -47,7 +48,7 @@ impl WgG2PCdf {
                     sim_params.params.buffer(),
                 ],
             )
-            .queue_indirect(grid.indirect_n_g2p_p2g_groups.clone());
+            .dispatch_indirect(&grid.indirect_n_g2p_p2g_groups);
     }
 }
 

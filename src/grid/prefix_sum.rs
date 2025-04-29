@@ -1,8 +1,8 @@
 use nalgebra::DVector;
-use wgcore::kernel::{KernelInvocationBuilder, KernelInvocationQueue};
+use wgcore::kernel::KernelDispatch;
 use wgcore::tensor::GpuVector;
 use wgcore::Shader;
-use wgpu::{BufferUsages, ComputePipeline, Device};
+use wgpu::{BufferUsages, ComputePass, ComputePipeline, Device};
 
 /// This is a special variant of the prefix sum algorithm that assumes a 0 is always prepended
 /// as the first element in the vector.
@@ -17,9 +17,10 @@ pub struct WgPrefixSum {
 impl WgPrefixSum {
     const THREADS: u32 = 256;
 
-    pub fn queue<'a>(
+    pub fn dispatch<'a>(
         &'a self,
-        queue: &mut KernelInvocationQueue<'a>,
+        device: &Device,
+        pass: &mut ComputePass,
         workspace: &mut PrefixSumWorkspace,
         data: &GpuVector<u32>,
     ) {
@@ -31,22 +32,22 @@ impl WgPrefixSum {
             "Internal error: prefix sum assumes a thread count equal to 256"
         );
 
-        workspace.reserve(queue.device(), data.len() as u32);
+        workspace.reserve(device, data.len() as u32);
 
         let ngroups0 = workspace.stages[0].buffer.len() as u32;
         let aux0 = &workspace.stages[0].buffer;
-        KernelInvocationBuilder::new(queue, &self.prefix_sum)
+        KernelDispatch::new(device, pass, &self.prefix_sum)
             .bind0([data.buffer(), aux0.buffer()])
-            .queue(ngroups0);
+            .dispatch(ngroups0);
 
         for i in 0..workspace.num_stages - 1 {
             let ngroups = workspace.stages[i + 1].buffer.len() as u32;
             let buf = workspace.stages[i].buffer.buffer();
             let aux = workspace.stages[i + 1].buffer.buffer();
 
-            KernelInvocationBuilder::new(queue, &self.prefix_sum)
+            KernelDispatch::new(device, pass, &self.prefix_sum)
                 .bind0([buf, aux])
-                .queue(ngroups);
+                .dispatch(ngroups);
         }
 
         if workspace.num_stages > 2 {
@@ -55,16 +56,16 @@ impl WgPrefixSum {
                 let buf = workspace.stages[i].buffer.buffer();
                 let aux = workspace.stages[i + 1].buffer.buffer();
 
-                KernelInvocationBuilder::new(queue, &self.add_data_grp)
+                KernelDispatch::new(device, pass, &self.add_data_grp)
                     .bind0([buf, aux])
-                    .queue(ngroups);
+                    .dispatch(ngroups);
             }
         }
 
         if workspace.num_stages > 1 {
-            KernelInvocationBuilder::new(queue, &self.add_data_grp)
+            KernelDispatch::new(device, pass, &self.add_data_grp)
                 .bind0([data.buffer(), aux0.buffer()])
-                .queue(ngroups0);
+                .dispatch(ngroups0);
         }
     }
 
@@ -172,7 +173,7 @@ mod test {
     use super::{PrefixSumWorkspace, WgPrefixSum};
     use nalgebra::DVector;
     use wgcore::gpu::GpuInstance;
-    use wgcore::kernel::KernelInvocationQueue;
+    use wgcore::kernel::CommandEncoderExt;
     use wgcore::tensor::GpuVector;
     use wgcore::Shader;
     use wgpu::BufferUsages;
@@ -184,7 +185,6 @@ mod test {
 
         let gpu = GpuInstance::new().await.unwrap();
         let prefix_sum = WgPrefixSum::from_device(gpu.device()).unwrap();
-        let mut queue = KernelInvocationQueue::new(gpu.device());
 
         let inputs = vec![
             DVector::<u32>::from_fn(LEN as usize, |_, _| 1),
@@ -206,8 +206,9 @@ mod test {
             );
 
             let mut workspace = PrefixSumWorkspace::with_capacity(gpu.device(), v_cpu.len() as u32);
-            prefix_sum.queue(&mut queue, &mut workspace, &v_gpu);
-
+            let mut pass = encoder.compute_pass("test", None);
+            prefix_sum.dispatch(gpu.device(), &mut pass, &mut workspace, &v_gpu);
+            drop(pass);
             queue.encode(&mut encoder, None);
             staging.copy_from(&mut encoder, &v_gpu);
 

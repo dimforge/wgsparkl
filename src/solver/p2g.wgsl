@@ -188,14 +188,14 @@ fn p2g_step(packed_cell_index_in_block: u32, cell_width: f32, node_affinity: u32
         let shift = vec2(2u, 2) - NBH_SHIFTS[i];
         let momentum = particle_vel * particle_mass;
         let dpt = ref_elt_pos_minus_particle_pos + vec2<f32>(shift) * cell_width; // cell_pos - particle_pos
-        let weight = w.x[shift.x] * w.y[shift.y];
+        let weight = w[0][shift.x] * w[1][shift.y];
 #else
         let particle_vel = particle_vel_mass.xyz;
         let particle_mass = particle_vel_mass.w;
         let shift = vec3(2u, 2, 2) - NBH_SHIFTS[i];
         let momentum = particle_vel * particle_mass;
         let dpt = ref_elt_pos_minus_particle_pos + vec3<f32>(shift) * cell_width; // cell_pos - particle_pos
-        let weight = w.x[shift.x] * w.y[shift.y] * w.z[shift.z];
+        let weight = w[0][shift.x] * w[1][shift.y] * w[2][shift.z];
 #endif
 
         let particle_affinity = shared_affinities[nbh_shared_index];

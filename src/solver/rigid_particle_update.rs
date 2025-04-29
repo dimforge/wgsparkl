@@ -1,11 +1,11 @@
 use crate::dim_shader_defs;
 use crate::solver::GpuRigidParticles;
 use crate::solver::WgParticle;
-use wgcore::kernel::{KernelInvocationBuilder, KernelInvocationQueue};
+use wgcore::kernel::KernelDispatch;
 use wgcore::Shader;
 use wgebra::{WgSim2, WgSim3};
 use wgparry::substitute_aliases;
-use wgpu::ComputePipeline;
+use wgpu::{ComputePass, ComputePipeline, Device};
 use wgrapier::dynamics::{GpuBodySet, WgBody};
 
 #[derive(Shader)]
@@ -22,13 +22,14 @@ pub struct WgRigidParticleUpdate {
 }
 
 impl WgRigidParticleUpdate {
-    pub fn queue<'a>(
+    pub fn dispatch<'a>(
         &'a self,
-        queue: &mut KernelInvocationQueue<'a>,
+        device: &Device,
+        pass: &mut ComputePass,
         bodies: &GpuBodySet,
         rigid_particles: &GpuRigidParticles,
     ) {
-        KernelInvocationBuilder::new(queue, &self.transform_sample_points)
+        KernelDispatch::new(device, pass, &self.transform_sample_points)
             .bind_at(
                 0,
                 [
@@ -38,9 +39,9 @@ impl WgRigidParticleUpdate {
                     (bodies.poses().buffer(), 4),
                 ],
             )
-            .queue((rigid_particles.local_sample_points.len() as u32).div_ceil(64));
+            .dispatch((rigid_particles.local_sample_points.len() as u32).div_ceil(64));
 
-        KernelInvocationBuilder::new(queue, &self.transform_shape_points)
+        KernelDispatch::new(device, pass, &self.transform_shape_points)
             .bind_at(
                 0,
                 [
@@ -50,7 +51,7 @@ impl WgRigidParticleUpdate {
                     (bodies.poses().buffer(), 4),
                 ],
             )
-            .queue((bodies.shapes_vertex_buffers().len() as u32).div_ceil(64));
+            .dispatch((bodies.shapes_vertex_buffers().len() as u32).div_ceil(64));
     }
 }
 
