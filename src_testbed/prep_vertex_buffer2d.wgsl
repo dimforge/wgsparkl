@@ -44,7 +44,7 @@ fn main(
 
     if particle_id < arrayLength(&instances) {
         let def_grad = particles_dyn[particle_id].def_grad;
-        instances[particle_id].deformation = mat3x3(vec3(def_grad.x, 0.0), vec3(def_grad.y, 0.0), vec3(0.0, 0.0, 1.0));
+        instances[particle_id].deformation = mat3x3(vec3(def_grad[0], 0.0), vec3(def_grad[1], 0.0), vec3(0.0, 0.0, 1.0));
         instances[particle_id].position = vec3(particles_pos[particle_id].pt, 0.0);
 
         let color = instances[particle_id].base_color;

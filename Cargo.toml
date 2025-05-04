@@ -9,10 +9,10 @@ resolver = "2"
 
 [workspace.dependencies]
 nalgebra = { version = "0.33", features = ["convert-bytemuck"] }
-wgpu = { version = "23", features = ["naga-ir"] }
+wgpu = { version = "24", features = ["naga-ir"] }
 bytemuck = { version = "1", features = ["derive"] }
 async-channel = "2"
-naga_oil = "0.16"
+naga_oil = "0.17"
 encase = { version = "0.10.0", features = ["nalgebra"] }
 
 [workspace.lints]
@@ -48,6 +48,8 @@ wgparry2d = { git = "https://github.com/dimforge/wgmath.git", rev = "6d17942bd84
 wgrapier3d = { git = "https://github.com/dimforge/wgmath.git", rev = "6d17942bd841efdfcc696d8455b22be3a8ddfe8d" }
 wgrapier2d = { git = "https://github.com/dimforge/wgmath.git", rev = "6d17942bd841efdfcc696d8455b22be3a8ddfe8d" }
 rapier3d = { git = "https://github.com/vrixyz/rapier.git", branch = "uber_physics_context" }
+
+bevy_editor_cam = { git = "https://github.com/tomara-x/bevy_editor_cam", branch = "bevy-0.16" }
 
 [profile.release]
 opt-level = 'z'

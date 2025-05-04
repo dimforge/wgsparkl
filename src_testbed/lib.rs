@@ -54,7 +54,9 @@ pub fn init_testbed(app: &mut App) {
             DefaultEditorCamPlugins,
         ))
         .add_plugins(instancing::ParticlesMaterialPlugin)
-        .add_plugins(bevy_egui::EguiPlugin)
+        .add_plugins(bevy_egui::EguiPlugin {
+            enable_multipass_for_primary_context: false,
+        })
         .init_resource::<SceneInits>()
         .add_systems(Startup, startup::setup_app)
         .add_systems(
@@ -69,7 +71,7 @@ pub fn init_testbed(app: &mut App) {
         );
 
     #[cfg(not(target_arch = "wasm32"))]
-    app.add_plugins(WireframePlugin);
+    app.add_plugins(WireframePlugin::default());
 
     #[cfg(feature = "dim2")]
     load_internal_asset!(

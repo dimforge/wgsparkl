@@ -5,7 +5,6 @@ use crate::step::TimestampChannel;
 use crate::{AppState, PhysicsContext, RenderContext, RunState, Timestamps};
 use bevy::asset::Assets;
 use bevy::color::Color;
-use bevy::hierarchy::DespawnRecursiveExt;
 use bevy::math::{Vec3, Vec4};
 use bevy::pbr::AmbientLight;
 use bevy::prelude::*;
@@ -104,7 +103,7 @@ fn setup_rapier_graphics(
     _to_clear: &Query<Entity, With<InstanceMaterialData>>,
 ) {
     for rigid in rigid_render.rigid_entities.drain(..) {
-        commands.entity(rigid.entity).despawn_recursive();
+        commands.entity(rigid.entity).despawn();
     }
 
     for (handle, collider) in physics.rapier_data.colliders.iter() {
@@ -145,7 +144,7 @@ fn setup_particles_graphics(
     to_clear: &Query<Entity, With<InstanceMaterialData>>,
 ) {
     for to_clear in to_clear.iter() {
-        commands.entity(to_clear).despawn_recursive();
+        commands.entity(to_clear).despawn();
     }
 
     let device = device.wgpu_device();
