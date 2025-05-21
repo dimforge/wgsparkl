@@ -2,15 +2,15 @@
 <html lang="en">
 
 <body style="margin: 0px;">
-    <script type="module">
-        import init from './elasticity3.js'
+<script type="module">
+    import init from './testbed3.js'
 
-        init().catch((error) => {
-            if (!error.message.startsWith("Using exceptions for control flow, don't mind me. This isn't actually an error!")) {
-                throw error;
-            }
-        });
-    </script>
+    init().catch((error) => {
+        if (!error.message.startsWith("Using exceptions for control flow, don't mind me. This isn't actually an error!")) {
+            throw error;
+        }
+    });
+</script>
 </body>
 
 </html>

@@ -24,6 +24,8 @@ pub mod startup;
 pub mod step;
 pub mod ui;
 
+mod wasm_window_resize;
+
 use bevy::asset::load_internal_asset;
 use bevy::ecs::system::SystemId;
 use bevy::pbr::wireframe::WireframePlugin;
@@ -48,7 +50,7 @@ use wgsparkl::{
 
 pub fn init_testbed(app: &mut App) {
     app.add_plugins(DefaultPlugins)
-        // .add_plugins(WindowResizePlugin)
+        .add_plugins(wasm_window_resize::WindowResizePlugin)
         .add_plugins((
             // bevy_mod_picking::DefaultPickingPlugins,
             DefaultEditorCamPlugins,
