@@ -32,6 +32,11 @@ struct Cdf {
 //    closest_id: u32,
 }
 
+struct Phase {
+    phase: f32,
+    max_stretch: f32,
+}
+
 fn default_cdf() -> Cdf {
     return Cdf(vec2(0.0), vec2(0.0), 0.0, 0);
 }

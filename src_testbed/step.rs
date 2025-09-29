@@ -153,6 +153,7 @@ pub fn step_simulation_legacy(
             &mut queue,
             &app_state.gpu_render_config,
             &physics.data.particles,
+            &physics.data.models,
             &physics.data.rigid_particles,
             &physics.data.grid,
             &physics.data.sim_params,

@@ -159,7 +159,7 @@ impl SpecializedMeshPipeline for CustomPipeline {
             // NOTE: shader locations 0-2 are taken up by Position, Normal and UV attributes.
             attributes: vec![
                 VertexAttribute {
-                    format: VertexFormat::Float32x4,
+                    format: VertexFormat::Float32x3,
                     offset: 0,
                     shader_location: 3,
                 },

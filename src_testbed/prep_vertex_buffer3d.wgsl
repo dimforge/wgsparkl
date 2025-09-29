@@ -17,6 +17,8 @@ var<storage, read_write> grid: Grid::Grid;
 var<uniform> params: Params::SimulationParams;
 @group(0) @binding(5)
 var<storage, read> config: RenderConfig;
+@group(0) @binding(6)
+var<storage, read> phases: array<Particle::Phase>;
 
 struct RenderConfig {
     mode: u32,
@@ -28,6 +30,7 @@ const VELOCITY: u32 = 2;
 const CDF_NORMALS: u32 = 3;
 const CDF_DISTANCES: u32 = 4;
 const CDF_SIGNS: u32 = 5;
+const PHASE: u32 = 6;
 
 
 struct InstanceData {
@@ -78,16 +81,19 @@ fn main(
                 instances[particle_id].color = vec4(abs(d), 0.0, 0.0, color.w);
             }
         } else if config.mode == CDF_SIGNS {
-             let d = particles_dyn[particle_id].cdf.affinity;
-             let a = (d >> 16) & (d & 0x0000ffff);
-             if d == 0 {
-                 instances[particle_id].color = vec4(0.0, 0.0, 0.0, color.w);
-             } else if a == 0 {
-                 instances[particle_id].color = vec4(0.0, 1.0, 0.0, color.w);
-             } else {
-                 instances[particle_id].color = vec4(1.0, 0.0, 0.0, color.w);
-             }
-         }
+            let d = particles_dyn[particle_id].cdf.affinity;
+            let a = (d >> 16) & (d & 0x0000ffff);
+            if d == 0 {
+                instances[particle_id].color = vec4(0.0, 0.0, 0.0, color.w);
+            } else if a == 0 {
+                instances[particle_id].color = vec4(0.0, 1.0, 0.0, color.w);
+            } else {
+                instances[particle_id].color = vec4(1.0, 0.0, 0.0, color.w);
+            }
+        } else if config.mode == PHASE {
+            let phase = phases[particle_id].phase;
+            instances[particle_id].color = vec4(vec3(mix(0.1, 1.0, phase)), color.w);
+        }
     }
 }
 

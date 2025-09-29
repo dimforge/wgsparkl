@@ -199,7 +199,11 @@ impl GpuParticles {
                 &positions,
                 BufferUsages::STORAGE | BufferUsages::COPY_SRC,
             ),
-            dynamics: GpuVector::encase(device, &dynamics, BufferUsages::STORAGE),
+            dynamics: GpuVector::encase(
+                device,
+                &dynamics,
+                BufferUsages::STORAGE | BufferUsages::COPY_SRC,
+            ),
             sorted_ids: GpuVector::uninit(device, particles.len() as u32, BufferUsages::STORAGE),
             node_linked_lists: GpuVector::uninit(
                 device,

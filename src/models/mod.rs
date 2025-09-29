@@ -44,7 +44,11 @@ impl GpuModels {
                 &plastic_states,
                 BufferUsages::STORAGE,
             ),
-            phases: GpuVector::init(device, &phases, BufferUsages::STORAGE),
+            phases: GpuVector::init(
+                device,
+                &phases,
+                BufferUsages::STORAGE | BufferUsages::COPY_SRC,
+            ),
         }
     }
 }

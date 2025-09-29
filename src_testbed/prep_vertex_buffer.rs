@@ -5,6 +5,7 @@ use wgebra::WgSvd2;
 use wgebra::WgSvd3;
 use wgpu::{Buffer, BufferUsages, ComputePipeline, Device};
 use wgsparkl::grid::grid::{GpuGrid, WgGrid};
+use wgsparkl::models::GpuModels;
 use wgsparkl::solver::{GpuParticles, GpuSimulationParams};
 use wgsparkl::solver::{GpuRigidParticles, WgParticle};
 
@@ -15,6 +16,7 @@ pub enum RenderMode {
     CdfNormals = 3,
     CdfDistances = 4,
     CdfSigns = 5,
+    Phase = 6,
 }
 
 impl RenderMode {
@@ -26,6 +28,7 @@ impl RenderMode {
             Self::CdfNormals => "cdf (normals)",
             Self::CdfDistances => "cdf (distances)",
             Self::CdfSigns => "cdf (signs)",
+            Self::Phase => "phase",
         }
     }
 
@@ -37,6 +40,7 @@ impl RenderMode {
             3 => Self::CdfNormals,
             4 => Self::CdfDistances,
             5 => Self::CdfSigns,
+            6 => Self::Phase,
             _ => unreachable!(),
         }
     }
@@ -85,6 +89,7 @@ impl WgPrepVertexBuffer {
         queue: &mut KernelInvocationQueue<'a>,
         config: &GpuRenderConfig,
         particles: &GpuParticles,
+        models: &GpuModels,
         rigid_particles: &GpuRigidParticles,
         grid: &GpuGrid,
         params: &GpuSimulationParams,
@@ -99,6 +104,7 @@ impl WgPrepVertexBuffer {
                 grid.meta.buffer(),
                 params.params.buffer(),
                 config.buffer.buffer(),
+                models.phases.buffer(),
             ])
             .queue(particles.positions.len().div_ceil(64) as u32);
 

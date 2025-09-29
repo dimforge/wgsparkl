@@ -28,7 +28,7 @@ var<storage, read> plasticity: array<DruckerPrager::Plasticity>;
 @group(1) @binding(4)
 var<storage, read_write> plastic_state: array<DruckerPrager::PlasticState>;
 @group(1) @binding(5)
-var<storage, read_write> phases: array<Phase>;
+var<storage, read_write> phases: array<Particle::Phase>;
 @group(1) @binding(6)
 var<uniform> params: Params::SimulationParams;
 
@@ -36,11 +36,6 @@ var<uniform> params: Params::SimulationParams;
 var<storage, read> collision_shapes: array<Cuboid::Cuboid>;
 @group(2) @binding(1)
 var<storage, read> collision_shape_poses: array<Transform>;
-
-struct Phase {
-    phase: f32,
-    max_stretch: f32,
-}
 
 @compute @workgroup_size(64, 1, 1)
 fn main(

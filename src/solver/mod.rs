@@ -1,5 +1,6 @@
 pub use g2p::WgG2P;
 pub use g2p_cdf::WgG2PCdf;
+pub use g2p_ghost::{GpuGhostParticles, WgG2PGhost};
 pub use p2g::WgP2G;
 pub use p2g_cdf::WgP2GCdf;
 pub use params::{GpuSimulationParams, SimulationParams, WgParams};
@@ -16,6 +17,7 @@ pub use rigid_particle_update::WgRigidParticleUpdate;
 
 mod g2p;
 mod g2p_cdf;
+mod g2p_ghost;
 mod p2g;
 mod p2g_cdf;
 mod params;

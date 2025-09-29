@@ -39,7 +39,7 @@ pub fn update_ui(
         egui::ComboBox::from_label("render mode")
             .selected_text(RenderMode::from_u32(app_state.render_config.mode).text())
             .show_ui(ui, |ui| {
-                for i in 0..6 {
+                for i in 0..7 {
                     changed = ui
                         .selectable_value(
                             &mut app_state.render_config.mode,

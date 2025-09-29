@@ -29,6 +29,10 @@ struct RigidParticleIndices {
     collider: u32,
 }
 
+struct Phase {
+    phase: f32,
+    max_stretch: f32,
+}
 
 fn default_cdf() -> Cdf {
     return Cdf(vec3(0.0), vec3(0.0), 0.0, 0);

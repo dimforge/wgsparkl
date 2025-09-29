@@ -46,15 +46,36 @@ use wgsparkl::{
     solver::Particle,
 };
 
-pub fn init_testbed(app: &mut App) {
+#[derive(Debug, Clone)]
+pub struct TestbedSettings {
+    pub draw_particles: bool,
+    pub wireframe: bool,
+    /// So apparently, marking with `#[non_exhastive]` prevents struct update syntax from working.
+    /// And using `..default()` results in a warning if all of the fields are specified (even if some may be added later)
+    /// so we have this field suppress that.
+    pub _indication_other_fields_may_be_added_later_so_use_default: (),
+}
+impl Default for TestbedSettings {
+    fn default() -> Self {
+        Self {
+            draw_particles: true,
+            wireframe: true,
+            _indication_other_fields_may_be_added_later_so_use_default: (),
+        }
+    }
+}
+
+pub fn init_testbed_with_settings(app: &mut App, settings: TestbedSettings) {
     app.add_plugins(DefaultPlugins)
         // .add_plugins(WindowResizePlugin)
         .add_plugins((
             // bevy_mod_picking::DefaultPickingPlugins,
             DefaultEditorCamPlugins,
-        ))
-        .add_plugins(instancing::ParticlesMaterialPlugin)
-        .add_plugins(bevy_egui::EguiPlugin)
+        ));
+    if settings.draw_particles {
+        app.add_plugins(instancing::ParticlesMaterialPlugin);
+    }
+    app.add_plugins(bevy_egui::EguiPlugin)
         .init_resource::<SceneInits>()
         .add_systems(Startup, startup::setup_app)
         .add_systems(
@@ -68,8 +89,10 @@ pub fn init_testbed(app: &mut App) {
                 .chain(),
         );
 
-    #[cfg(not(target_arch = "wasm32"))]
-    app.add_plugins(WireframePlugin);
+    if settings.wireframe {
+        #[cfg(not(target_arch = "wasm32"))]
+        app.add_plugins(WireframePlugin);
+    }
 
     #[cfg(feature = "dim2")]
     load_internal_asset!(
@@ -85,6 +108,10 @@ pub fn init_testbed(app: &mut App) {
         "./instancing3d.wgsl",
         Shader::from_wgsl
     );
+}
+
+pub fn init_testbed(app: &mut App) {
+    init_testbed_with_settings(app, default())
 }
 
 #[derive(Resource)]

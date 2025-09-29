@@ -5,9 +5,9 @@ use crate::grid::sort::TouchParticleBlocks;
 use crate::grid::sort::WgSort;
 use crate::models::GpuModels;
 use crate::solver::{
-    GpuImpulses, GpuParticles, GpuRigidParticles, GpuSimulationParams, Particle, SimulationParams,
-    WgG2P, WgG2PCdf, WgGridUpdate, WgGridUpdateCdf, WgP2G, WgP2GCdf, WgParticleUpdate,
-    WgRigidImpulses, WgRigidParticleUpdate,
+    GpuGhostParticles, GpuImpulses, GpuParticles, GpuRigidParticles, GpuSimulationParams, Particle,
+    SimulationParams, WgG2P, WgG2PCdf, WgG2PGhost, WgGridUpdate, WgGridUpdateCdf, WgP2G, WgP2GCdf,
+    WgParticleUpdate, WgRigidImpulses, WgRigidParticleUpdate,
 };
 use naga_oil::compose::ComposerError;
 use rapier::dynamics::RigidBodySet;
@@ -34,6 +34,7 @@ pub struct MpmPipeline {
     particles_update: WgParticleUpdate,
     g2p: WgG2P,
     g2p_cdf: WgG2PCdf,
+    g2p_ghost: WgG2PGhost,
     rigid_particles_update: WgRigidParticleUpdate,
     pub impulses: WgRigidImpulses,
 }
@@ -50,6 +51,7 @@ impl MpmPipeline {
         WgParticleUpdate::watch_sources(state).unwrap(); // TODO: don’t unwrap
         WgG2P::watch_sources(state).unwrap(); // TODO: don’t unwrap
         WgG2PCdf::watch_sources(state).unwrap(); // TODO: don’t unwrap
+        WgG2PGhost::watch_sources(state).unwrap(); // TODO: don’t unwrap
         WgIntegrate::watch_sources(state).unwrap(); // TODO: don’t unwrap
         WgRigidImpulses::watch_sources(state).unwrap(); // TODO: don’t unwrap
         WgRigidParticleUpdate::watch_sources(state).unwrap(); // TODOO: don’t unwrap
@@ -71,6 +73,7 @@ impl MpmPipeline {
         changed = self.particles_update.reload_if_changed(device, state)? || changed;
         changed = self.g2p.reload_if_changed(device, state)? || changed;
         changed = self.g2p_cdf.reload_if_changed(device, state)? || changed;
+        changed = self.g2p_ghost.reload_if_changed(device, state)? || changed;
         changed = self.impulses.reload_if_changed(device, state)? || changed;
         changed = self
             .rigid_particles_update
@@ -86,11 +89,12 @@ pub struct MpmData {
     pub grid: GpuGrid,
     pub particles: GpuParticles, // TODO: keep private?
     pub rigid_particles: GpuRigidParticles,
+    pub ghost_particles: GpuGhostParticles,
     pub bodies: GpuBodySet,
     pub impulses: GpuImpulses,
     pub poses_staging: GpuVector<GpuSim>,
     prefix_sum: PrefixSumWorkspace,
-    models: GpuModels,
+    pub models: GpuModels,
     coupling: Vec<BodyCouplingEntry>,
 }
 
@@ -144,6 +148,7 @@ impl MpmData {
         let particles = GpuParticles::from_particles(device, particles);
         let rigid_particles =
             GpuRigidParticles::from_rapier(device, colliders, &bodies, &coupling, sampling_step);
+        let ghost_particles = GpuGhostParticles::empty(device);
         let grid = GpuGrid::with_capacity(device, grid_capacity, cell_width);
         let prefix_sum = PrefixSumWorkspace::with_capacity(device, grid_capacity);
         let impulses = GpuImpulses::new(device);
@@ -157,6 +162,7 @@ impl MpmData {
             sim_params,
             particles,
             rigid_particles,
+            ghost_particles,
             bodies,
             impulses,
             grid,
@@ -186,6 +192,7 @@ impl MpmPipeline {
             rigid_particles_update: WgRigidParticleUpdate::from_device(device)?,
             g2p: WgG2P::from_device(device)?,
             g2p_cdf: WgG2PCdf::from_device(device)?,
+            g2p_ghost: WgG2PGhost::from_device(device)?,
             #[cfg(target_os = "macos")]
             touch_particle_blocks: TouchParticleBlocks::from_device(device),
             impulses: WgRigidImpulses::from_device(device)?,
@@ -256,6 +263,18 @@ impl MpmPipeline {
             &data.particles,
             &data.bodies,
         );
+
+        if !data.ghost_particles.positions.is_empty() {
+            queue.compute_pass("g2p_ghost", add_timestamps);
+
+            self.g2p_ghost.queue(
+                queue,
+                &data.sim_params,
+                &data.grid,
+                &data.ghost_particles,
+                &data.bodies,
+            );
+        }
 
         queue.compute_pass("particles_update", add_timestamps);
 
